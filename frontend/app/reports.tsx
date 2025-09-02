@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     width: width - 32,
     borderRadius: 12,
-    maxHeight: height * 0.7,
+    maxHeight: 600,
   },
   newPostHeader: {
     flexDirection: 'row',

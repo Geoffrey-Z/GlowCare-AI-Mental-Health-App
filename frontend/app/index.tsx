@@ -20,6 +20,7 @@ import ConversationAnalysisScreen from './conversations';
 import CrisisSupportScreen from './support';
 import SocialFeedScreen from './reports';
 import MessagesScreen from './messages';
+import ProfileScreen from './profile';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,6 +31,9 @@ const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
 // Mock user ID for demo
 const DEMO_USER_ID = 'demo-user-123';
 
+// Navigation helper for profile
+let currentNavigation = null;
+
 // Main component
 export default function GlowCareApp() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -37,6 +41,7 @@ export default function GlowCareApp() {
   const [loading, setLoading] = useState(false);
   const [emotions, setEmotions] = useState([]);
   const [reportData, setReportData] = useState(null);
+  const [profileParams, setProfileParams] = useState(null);
 
   // Initialize user on app start
   useEffect(() => {
@@ -105,6 +110,20 @@ export default function GlowCareApp() {
       console.error('API connection error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Navigation helper
+  const navigationHelper = {
+    navigate: (screen, params) => {
+      if (screen === 'profile') {
+        setProfileParams(params);
+        setActiveTab('profile');
+      }
+    },
+    goBack: () => {
+      setActiveTab('reports'); // Go back to social feed
+      setProfileParams(null);
     }
   };
 
@@ -391,9 +410,11 @@ export default function GlowCareApp() {
       case 'support':
         return <CrisisSupportScreen />;
       case 'reports':
-        return <SocialFeedScreen />;
+        return <SocialFeedScreen navigation={navigationHelper} />;
       case 'messages':
         return <MessagesScreen />;
+      case 'profile':
+        return <ProfileScreen route={{ params: profileParams }} navigation={navigationHelper} />;
       default:
         return <WelcomeScreen />;
     }
@@ -407,52 +428,54 @@ export default function GlowCareApp() {
         {renderCurrentScreen()}
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TabButton
-          id="home"
-          icon="home-outline"
-          label="首页"
-          isActive={activeTab === 'home'}
-          onPress={setActiveTab}
-        />
-        <TabButton
-          id="emotions"
-          icon="heart-outline"
-          label="情绪"
-          isActive={activeTab === 'emotions'}
-          onPress={setActiveTab}
-        />
-        <TabButton
-          id="conversations"
-          icon="chatbubbles-outline"
-          label="对话"
-          isActive={activeTab === 'conversations'}
-          onPress={setActiveTab}
-        />
-        <TabButton
-          id="support"
-          icon="shield-checkmark-outline"
-          label="支持"
-          isActive={activeTab === 'support'}
-          onPress={setActiveTab}
-        />
-        <TabButton
-          id="reports"
-          icon="people-outline"
-          label="社区"
-          isActive={activeTab === 'reports'}
-          onPress={setActiveTab}
-        />
-        <TabButton
-          id="messages"
-          icon="mail-outline"
-          label="消息"
-          isActive={activeTab === 'messages'}
-          onPress={setActiveTab}
-          hasNotification={true}
-        />
-      </View>
+      {/* Bottom Navigation - Hide for profile screen */}
+      {activeTab !== 'profile' && (
+        <View style={styles.bottomNav}>
+          <TabButton
+            id="home"
+            icon="home-outline"
+            label="首页"
+            isActive={activeTab === 'home'}
+            onPress={setActiveTab}
+          />
+          <TabButton
+            id="emotions"
+            icon="heart-outline"
+            label="情绪"
+            isActive={activeTab === 'emotions'}
+            onPress={setActiveTab}
+          />
+          <TabButton
+            id="conversations"
+            icon="chatbubbles-outline"
+            label="对话"
+            isActive={activeTab === 'conversations'}
+            onPress={setActiveTab}
+          />
+          <TabButton
+            id="support"
+            icon="shield-checkmark-outline"
+            label="支持"
+            isActive={activeTab === 'support'}
+            onPress={setActiveTab}
+          />
+          <TabButton
+            id="reports"
+            icon="people-outline"
+            label="社区"
+            isActive={activeTab === 'reports'}
+            onPress={setActiveTab}
+          />
+          <TabButton
+            id="messages"
+            icon="mail-outline"
+            label="消息"
+            isActive={activeTab === 'messages'}
+            onPress={setActiveTab}
+            hasNotification={true}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }

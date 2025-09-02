@@ -205,12 +205,10 @@ const mockPosts = [
   }
 ];
 
-export default function SocialFeedScreen() {
+export default function SocialFeedScreen({ navigation }) {
   const [posts, setPosts] = useState(mockPosts);
   const [refreshing, setRefreshing] = useState(false);
   const [showNewPost, setShowNewPost] = useState(false);
-  const [showUserProfile, setShowUserProfile] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
   const [newPostText, setNewPostText] = useState('');
   const [selectedEmotion, setSelectedEmotion] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]);
@@ -258,13 +256,16 @@ export default function SocialFeedScreen() {
   };
 
   const openUserProfile = (user) => {
-    setSelectedUser(user);
-    setShowUserProfile(true);
+    // Navigate to profile page
+    if (navigation) {
+      navigation.navigate('profile', { userId: user.id });
+    }
   };
 
   const openMyProfile = () => {
-    setSelectedUser(currentUser);
-    setShowUserProfile(true);
+    if (navigation) {
+      navigation.navigate('profile', { userId: 'me' });
+    }
   };
 
   const pickImages = async () => {
@@ -458,88 +459,6 @@ export default function SocialFeedScreen() {
     </TouchableOpacity>
   );
 
-  const UserProfileModal = () => {
-    if (!showUserProfile || !selectedUser) return null;
-    
-    return (
-      <View style={styles.modalOverlay}>
-        <View style={styles.profileModal}>
-          <View style={styles.profileHeader}>
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setShowUserProfile(false)}
-            >
-              <Ionicons name="close" size={24} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.profileInfo}>
-            <TouchableOpacity style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>{selectedUser.avatar}</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.profileDetails}>
-              <View style={styles.profileName}>
-                <Text style={styles.profileNameText}>{selectedUser.name}</Text>
-                {selectedUser.verified && (
-                  <Ionicons 
-                    name="checkmark-circle" 
-                    size={20} 
-                    color={selectedUser.isOfficial ? '#6366f1' : selectedUser.isProfessional ? '#059669' : '#22c55e'} 
-                  />
-                )}
-              </View>
-              
-              {selectedUser.bio && (
-                <Text style={styles.profileBio}>{selectedUser.bio}</Text>
-              )}
-              
-              {selectedUser.isOfficial && (
-                <Text style={styles.officialBadge}>GlowCare 官方账号</Text>
-              )}
-              {selectedUser.isProfessional && (
-                <Text style={styles.professionalBadge}>认证心理咨询师</Text>
-              )}
-              
-              <View style={styles.profileStats}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{selectedUser.posts}</Text>
-                  <Text style={styles.statLabel}>动态</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{selectedUser.followers}</Text>
-                  <Text style={styles.statLabel}>粉丝</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{selectedUser.following}</Text>
-                  <Text style={styles.statLabel}>关注</Text>
-                </View>
-              </View>
-              
-              <View style={styles.profileActions}>
-                {selectedUser.id === 'me' ? (
-                  <TouchableOpacity style={styles.editButton}>
-                    <Text style={styles.editButtonText}>编辑资料</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <TouchableOpacity style={styles.followButton}>
-                      <Text style={styles.followButtonText}>+ 关注</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.messageButton}>
-                      <Ionicons name="chatbubble-outline" size={16} color="#6366f1" />
-                      <Text style={styles.messageButtonText}>私信</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
   const NewPostModal = () => {
     if (!showNewPost) return null;
 
@@ -716,7 +635,6 @@ export default function SocialFeedScreen() {
 
       {/* Modals */}
       <NewPostModal />
-      <UserProfileModal />
     </SafeAreaView>
   );
 }
@@ -1045,142 +963,5 @@ const styles = StyleSheet.create({
   emotionName: {
     fontSize: 12,
     color: '#4b5563',
-  },
-  // 个人主页样式
-  profileModal: {
-    backgroundColor: 'white',
-    width: width - 32,
-    borderRadius: 16,
-    padding: 24,
-  },
-  profileHeader: {
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  profileInfo: {
-    alignItems: 'center',
-  },
-  profileAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  profileAvatarText: {
-    fontSize: 36,
-  },
-  profileDetails: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  profileName: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  profileNameText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginRight: 8,
-  },
-  profileBio: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  officialBadge: {
-    fontSize: 14,
-    color: '#6366f1',
-    backgroundColor: '#eff6ff',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  professionalBadge: {
-    fontSize: 14,
-    color: '#059669',
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  profileStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#f3f4f6',
-    marginBottom: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  profileActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  followButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  followButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  editButton: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  editButtonText: {
-    color: '#6b7280',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  messageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#6366f1',
-  },
-  messageButtonText: {
-    color: '#6366f1',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 4,
   },
 });

@@ -13,6 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
+// Import screens
+import EmotionTrackingScreen from './emotions';
+import ConversationAnalysisScreen from './conversations';
+import CrisisSupportScreen from './support';
+import MoodReportsScreen from './reports';
+
 const { width, height } = Dimensions.get('window');
 
 // API configuration
@@ -187,54 +193,16 @@ export default function GlowCareApp() {
     </ScrollView>
   );
 
-  const PlaceholderScreen = ({ title, icon, description }) => (
-    <View style={styles.placeholderContainer}>
-      <Ionicons name={icon} size={64} color="#6366f1" />
-      <Text style={styles.placeholderTitle}>{title}</Text>
-      <Text style={styles.placeholderDescription}>{description}</Text>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => setActiveTab('home')}
-      >
-        <Text style={styles.backButtonText}>← Back to Home</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
   const renderCurrentScreen = () => {
     switch (activeTab) {
       case 'emotions':
-        return (
-          <PlaceholderScreen
-            title="Emotion Tracking"
-            icon="heart-outline"
-            description="Log your emotions and get AI-powered insights. This feature will allow you to track your mood patterns over time."
-          />
-        );
+        return <EmotionTrackingScreen />;
       case 'conversations':
-        return (
-          <PlaceholderScreen
-            title="Conversation Analysis"
-            icon="chatbubbles-outline"
-            description="Get real-time support during difficult conversations with AI-powered analysis and suggestions."
-          />
-        );
+        return <ConversationAnalysisScreen />;
       case 'support':
-        return (
-          <PlaceholderScreen
-            title="Crisis Support"
-            icon="shield-checkmark-outline"
-            description="Access immediate help with breathing exercises, CBT techniques, and crisis intervention support."
-          />
-        );
+        return <CrisisSupportScreen />;
       case 'reports':
-        return (
-          <PlaceholderScreen
-            title="Mood Reports"
-            icon="analytics-outline"
-            description="View comprehensive reports about your emotional patterns and mental health insights."
-          />
-        );
+        return <MoodReportsScreen />;
       default:
         return <WelcomeScreen />;
     }

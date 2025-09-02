@@ -11,11 +11,21 @@ import {
   RefreshControl,
   Dimensions,
   FlatList,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import * as ImagePicker from 'expo-image-picker';
+
+// Only import ImagePicker on native platforms
+let ImagePicker;
+if (Platform.OS !== 'web') {
+  try {
+    ImagePicker = require('expo-image-picker');
+  } catch (e) {
+    console.log('ImagePicker not available on this platform');
+  }
+}
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2; // 两列卡片，考虑边距

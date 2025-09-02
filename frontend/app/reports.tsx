@@ -218,9 +218,11 @@ export default function SocialFeedScreen() {
   }, []);
 
   const requestMediaPermissions = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('权限需要', '需要访问相册权限来上传图片');
+    if (Platform.OS !== 'web' && ImagePicker) {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('权限需要', '需要访问相册权限来上传图片');
+      }
     }
   };
 
@@ -249,6 +251,11 @@ export default function SocialFeedScreen() {
   };
 
   const pickImages = async () => {
+    if (Platform.OS === 'web' || !ImagePicker) {
+      Alert.alert('提示', '此功能在移动设备上可用');
+      return;
+    }
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -268,6 +275,11 @@ export default function SocialFeedScreen() {
   };
 
   const pickVideo = async () => {
+    if (Platform.OS === 'web' || !ImagePicker) {
+      Alert.alert('提示', '此功能在移动设备上可用');
+      return;
+    }
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,

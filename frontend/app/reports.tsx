@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2; // 两列卡片，考虑边距
@@ -24,7 +25,7 @@ const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
 // Mock user ID for demo
 const DEMO_USER_ID = 'demo-user-123';
 
-// Mock social feed data with images
+// Mock social feed data with varied heights like Xiaohongshu
 const mockPosts = [
   {
     id: '1',
@@ -37,16 +38,16 @@ const mockPosts = [
       followers: 156,
       following: 89
     },
-    content: '今天终于克服了社交焦虑，和同事一起吃午饭了！小小的进步也值得庆祝 🎉',
+    content: '今天终于克服了社交焦虑，和同事一起吃午饭了！小小的进步也值得庆祝 🎉\n\n分享一些我学到的小技巧：\n1. 深呼吸放松\n2. 提前准备话题\n3. 记住每个人都有紧张的时候',
     emotion: 'happy',
     intensity: 8,
     timestamp: '2小时前',
     likes: 24,
     comments: 8,
     isLiked: false,
-    image: 'https://images.unsplash.com/photo-1544027993-37dbfe43562a?w=300&h=400&fit=crop',
+    images: ['https://images.unsplash.com/photo-1544027993-37dbfe43562a?w=300&h=400&fit=crop'],
     tags: ['社交焦虑', '小进步', '自信'],
-    height: 280
+    cardHeight: 380  // 较高的卡片
   },
   {
     id: '2',
@@ -66,9 +67,9 @@ const mockPosts = [
     likes: 156,
     comments: 32,
     isLiked: true,
-    image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=350&fit=crop',
+    images: ['https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=250&fit=crop'],
     tags: ['每日提醒', '正念', '自我关爱'],
-    height: 320
+    cardHeight: 280  // 中等高度
   },
   {
     id: '3',
@@ -88,9 +89,9 @@ const mockPosts = [
     likes: 43,
     comments: 15,
     isLiked: false,
-    image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=300&h=420&fit=crop',
+    images: ['https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=300&h=320&fit=crop'],
     tags: ['情绪日记', '自我发现'],
-    height: 300
+    cardHeight: 320  // 中等偏高
   },
   {
     id: '4',
@@ -110,9 +111,9 @@ const mockPosts = [
     likes: 67,
     comments: 21,
     isLiked: true,
-    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=300&h=380&fit=crop',
+    images: ['https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=300&h=220&fit=crop'],
     tags: ['瑜伽', '正念', '身心健康'],
-    height: 340
+    cardHeight: 250  // 较矮的卡片
   },
   {
     id: '5',
@@ -126,15 +127,15 @@ const mockPosts = [
       followers: 8900,
       following: 23
     },
-    content: '关于焦虑管理的5个实用技巧 📚\n\n1. 腹式呼吸\n2. 渐进性肌肉放松\n3. 认知重构\n4. 正念冥想\n5. 适度运动',
+    content: '关于焦虑管理的5个实用技巧 📚\n\n1. 腹式呼吸 - 4秒吸气，6秒呼气\n2. 渐进性肌肉放松 - 从头到脚逐步放松\n3. 认知重构 - 挑战负面想法\n4. 正念冥想 - 专注当下时刻\n5. 适度运动 - 每天至少30分钟\n\n记住，练习是关键！',
     emotion: 'educational',
     timestamp: '12小时前',
     likes: 198,
     comments: 45,
     isLiked: false,
-    image: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=300&h=360&fit=crop',
+    images: ['https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=300&h=360&fit=crop'],
     tags: ['专业建议', '焦虑管理', '心理技巧'],
-    height: 330
+    cardHeight: 420  // 最高的卡片
   },
   {
     id: '6',
@@ -154,9 +155,31 @@ const mockPosts = [
     likes: 89,
     comments: 12,
     isLiked: false,
-    image: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=300&h=290&fit=crop',
+    images: ['https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=300&h=190&fit=crop'],
     tags: ['友谊', '分享', '感恩'],
-    height: 260
+    cardHeight: 220  // 最矮的卡片
+  },
+  {
+    id: '7',
+    user: {
+      id: 'user5',
+      name: '心灵花园',
+      avatar: '🌺',
+      verified: false,
+      posts: 89,
+      followers: 445,
+      following: 123
+    },
+    content: '今天学会了一个新的呼吸技巧，感觉整个人都平静了下来。想和大家分享这种美好的感受 ✨',
+    emotion: 'peaceful',
+    intensity: 8,
+    timestamp: '1天前',
+    likes: 56,
+    comments: 18,
+    isLiked: false,
+    images: ['https://images.unsplash.com/photo-1518611012118-696072aa579a?w=300&h=280&fit=crop'],
+    tags: ['呼吸练习', '内心平静'],
+    cardHeight: 290
   }
 ];
 
@@ -168,6 +191,8 @@ export default function SocialFeedScreen() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [newPostText, setNewPostText] = useState('');
   const [selectedEmotion, setSelectedEmotion] = useState(null);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
   const emotions = [
     { id: 'happy', name: '开心', emoji: '😊', color: '#22c55e' },
@@ -177,6 +202,17 @@ export default function SocialFeedScreen() {
     { id: 'excited', name: '兴奋', emoji: '🤩', color: '#8b5cf6' },
     { id: 'grateful', name: '感恩', emoji: '🙏', color: '#ec4899' },
   ];
+
+  useEffect(() => {
+    requestMediaPermissions();
+  }, []);
+
+  const requestMediaPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('权限需要', '需要访问相册权限来上传图片');
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -200,6 +236,51 @@ export default function SocialFeedScreen() {
   const openUserProfile = (user) => {
     setSelectedUser(user);
     setShowUserProfile(true);
+  };
+
+  const pickImages = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.7,
+        aspect: [4, 3],
+      });
+
+      if (!result.canceled && result.assets) {
+        const imageUris = result.assets.map(asset => asset.uri);
+        setSelectedImages([...selectedImages, ...imageUris.slice(0, 9 - selectedImages.length)]);
+      }
+    } catch (error) {
+      console.log('Error picking images:', error);
+      Alert.alert('提示', '图片选择失败');
+    }
+  };
+
+  const pickVideo = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setSelectedVideo(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.log('Error picking video:', error);
+      Alert.alert('提示', '视频选择失败');
+    }
+  };
+
+  const removeImage = (index) => {
+    const newImages = selectedImages.filter((_, i) => i !== index);
+    setSelectedImages(newImages);
+  };
+
+  const removeVideo = () => {
+    setSelectedVideo(null);
   };
 
   const publishPost = () => {
@@ -226,19 +307,22 @@ export default function SocialFeedScreen() {
       likes: 0,
       comments: 0,
       isLiked: false,
-      image: null,
+      images: selectedImages,
+      video: selectedVideo,
       tags: [],
-      height: 200
+      cardHeight: 240 + (selectedImages.length > 0 ? 120 : 0) + (selectedVideo ? 150 : 0)
     };
 
     setPosts([newPost, ...posts]);
     setNewPostText('');
     setSelectedEmotion(null);
+    setSelectedImages([]);
+    setSelectedVideo(null);
     setShowNewPost(false);
     Alert.alert('成功', '动态发布成功！');
   };
 
-  // 瀑布流数据处理
+  // 优化瀑布流算法 - 使用实际卡片高度
   const formatPostsForMasonry = (posts) => {
     const leftColumn = [];
     const rightColumn = [];
@@ -246,12 +330,14 @@ export default function SocialFeedScreen() {
     let rightHeight = 0;
 
     posts.forEach((post, index) => {
+      const cardHeight = post.cardHeight || 280;
+      
       if (leftHeight <= rightHeight) {
         leftColumn.push({ ...post, columnIndex: 0 });
-        leftHeight += post.height || 300;
+        leftHeight += cardHeight + 12; // 加上margin
       } else {
         rightColumn.push({ ...post, columnIndex: 1 });
-        rightHeight += post.height || 300;
+        rightHeight += cardHeight + 12;
       }
     });
 
@@ -261,15 +347,34 @@ export default function SocialFeedScreen() {
   const { leftColumn, rightColumn } = formatPostsForMasonry(posts);
 
   const PostCard = ({ post, style }) => (
-    <TouchableOpacity style={[styles.postCard, style]} activeOpacity={0.9}>
-      {/* 封面图片 */}
-      {post.image && (
-        <Image source={{ uri: post.image }} style={styles.postImage} />
+    <TouchableOpacity 
+      style={[styles.postCard, { minHeight: post.cardHeight || 280 }, style]} 
+      activeOpacity={0.95}
+    >
+      {/* 封面图片或视频 */}
+      {post.images && post.images.length > 0 && (
+        <View style={styles.mediaContainer}>
+          <Image source={{ uri: post.images[0] }} style={styles.postImage} resizeMode="cover" />
+          {post.images.length > 1 && (
+            <View style={styles.imageCountBadge}>
+              <Ionicons name="images" size={12} color="white" />
+              <Text style={styles.imageCountText}>{post.images.length}</Text>
+            </View>
+          )}
+        </View>
+      )}
+      
+      {post.video && (
+        <View style={styles.mediaContainer}>
+          <View style={styles.videoPlaceholder}>
+            <Ionicons name="play-circle" size={40} color="white" />
+          </View>
+        </View>
       )}
       
       {/* 内容 */}
       <View style={styles.postContent}>
-        <Text style={styles.postText} numberOfLines={3}>
+        <Text style={styles.postText} numberOfLines={4}>
           {post.content}
         </Text>
         
@@ -290,6 +395,7 @@ export default function SocialFeedScreen() {
         <TouchableOpacity 
           style={styles.userRow}
           onPress={() => openUserProfile(post.user)}
+          activeOpacity={0.7}
         >
           <View style={styles.miniAvatar}>
             <Text style={styles.miniAvatarText}>{post.user.avatar}</Text>
@@ -337,9 +443,9 @@ export default function SocialFeedScreen() {
           </View>
           
           <View style={styles.profileInfo}>
-            <View style={styles.profileAvatar}>
+            <TouchableOpacity style={styles.profileAvatar}>
               <Text style={styles.profileAvatarText}>{selectedUser.avatar}</Text>
-            </View>
+            </TouchableOpacity>
             
             <View style={styles.profileDetails}>
               <View style={styles.profileName}>
@@ -377,7 +483,7 @@ export default function SocialFeedScreen() {
               
               <TouchableOpacity style={styles.followButton}>
                 <Text style={styles.followButtonText}>
-                  {selectedUser.id === 'me' ? '编辑资料' : '关注'}
+                  {selectedUser.id === 'me' ? '编辑资料' : '+ 关注'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -403,34 +509,89 @@ export default function SocialFeedScreen() {
             </TouchableOpacity>
           </View>
           
-          <TextInput
-            style={styles.newPostInput}
-            value={newPostText}
-            onChangeText={setNewPostText}
-            placeholder="分享你的心情、想法或经验..."
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-          />
-          
-          <View style={styles.emotionSelector}>
-            <Text style={styles.emotionSelectorTitle}>当前心情:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {emotions.map(emotion => (
-                <TouchableOpacity
-                  key={emotion.id}
-                  style={[
-                    styles.emotionOption,
-                    selectedEmotion?.id === emotion.id && styles.selectedEmotion
-                  ]}
-                  onPress={() => setSelectedEmotion(emotion)}
-                >
-                  <Text style={styles.emotionEmoji}>{emotion.emoji}</Text>
-                  <Text style={styles.emotionName}>{emotion.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <TextInput
+              style={styles.newPostInput}
+              value={newPostText}
+              onChangeText={setNewPostText}
+              placeholder="分享你的心情、想法或经验..."
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            
+            {/* 媒体预览 */}
+            {(selectedImages.length > 0 || selectedVideo) && (
+              <View style={styles.mediaPreview}>
+                {/* 图片预览 */}
+                {selectedImages.length > 0 && (
+                  <View style={styles.imagesPreview}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {selectedImages.map((uri, index) => (
+                        <View key={index} style={styles.imagePreviewContainer}>
+                          <Image source={{ uri }} style={styles.imagePreview} />
+                          <TouchableOpacity
+                            style={styles.removeImageButton}
+                            onPress={() => removeImage(index)}
+                          >
+                            <Ionicons name="close-circle" size={20} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+                
+                {/* 视频预览 */}
+                {selectedVideo && (
+                  <View style={styles.videoPreview}>
+                    <View style={styles.videoPlaceholder}>
+                      <Ionicons name="play-circle" size={30} color="#6366f1" />
+                      <Text style={styles.videoText}>视频已选择</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeVideoButton}
+                      onPress={removeVideo}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+            
+            {/* 媒体选择按钮 */}
+            <View style={styles.mediaButtons}>
+              <TouchableOpacity style={styles.mediaButton} onPress={pickImages}>
+                <Ionicons name="image-outline" size={20} color="#6366f1" />
+                <Text style={styles.mediaButtonText}>图片</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.mediaButton} onPress={pickVideo}>
+                <Ionicons name="videocam-outline" size={20} color="#6366f1" />
+                <Text style={styles.mediaButtonText}>视频</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.emotionSelector}>
+              <Text style={styles.emotionSelectorTitle}>当前心情:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {emotions.map(emotion => (
+                  <TouchableOpacity
+                    key={emotion.id}
+                    style={[
+                      styles.emotionOption,
+                      selectedEmotion?.id === emotion.id && styles.selectedEmotion
+                    ]}
+                    onPress={() => setSelectedEmotion(emotion)}
+                  >
+                    <Text style={styles.emotionEmoji}>{emotion.emoji}</Text>
+                    <Text style={styles.emotionName}>{emotion.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </ScrollView>
         </View>
       </View>
     );
@@ -572,10 +733,35 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  mediaContainer: {
+    position: 'relative',
+  },
   postImage: {
     width: '100%',
     height: 120,
-    resizeMode: 'cover',
+  },
+  imageCountBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  imageCountText: {
+    color: 'white',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  videoPlaceholder: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   postContent: {
     padding: 12,
@@ -689,8 +875,65 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: '#1f2937',
-    minHeight: 120,
+    minHeight: 100,
     textAlignVertical: 'top',
+  },
+  mediaPreview: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  imagesPreview: {
+    marginBottom: 12,
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  imagePreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+  },
+  videoPreview: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  videoText: {
+    fontSize: 12,
+    color: '#6366f1',
+    marginTop: 4,
+  },
+  removeVideoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+  },
+  mediaButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  mediaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  mediaButtonText: {
+    fontSize: 14,
+    color: '#6366f1',
+    marginLeft: 6,
+    fontWeight: '500',
   },
   emotionSelector: {
     padding: 16,

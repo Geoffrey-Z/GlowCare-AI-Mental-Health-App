@@ -10,131 +10,176 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
+const CARD_WIDTH = (width - 48) / 2; // 两列卡片，考虑边距
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
 
 // Mock user ID for demo
 const DEMO_USER_ID = 'demo-user-123';
 
-// Mock social feed data
+// Mock social feed data with images
 const mockPosts = [
   {
     id: '1',
     user: {
-      name: '小明',
+      id: 'user1',
+      name: '小雨',
       avatar: '😊',
-      verified: true
+      verified: false,
+      posts: 23,
+      followers: 156,
+      following: 89
     },
-    content: '今天经过心理咨询后感觉好多了！想分享给大家一些呼吸练习的技巧：4秒吸气，保持4秒，6秒呼气。重复几次就会感觉平静很多 ✨',
+    content: '今天终于克服了社交焦虑，和同事一起吃午饭了！小小的进步也值得庆祝 🎉',
     emotion: 'happy',
     intensity: 8,
     timestamp: '2小时前',
     likes: 24,
     comments: 8,
-    shares: 3,
-    tags: ['呼吸练习', '心理咨询', '自我关爱'],
     isLiked: false,
-    images: []
+    image: 'https://images.unsplash.com/photo-1544027993-37dbfe43562a?w=300&h=400&fit=crop',
+    tags: ['社交焦虑', '小进步', '自信'],
+    height: 280
   },
   {
     id: '2',
     user: {
+      id: 'official',
       name: '心理小助手',
       avatar: '🌟',
       verified: true,
-      isOfficial: true
+      isOfficial: true,
+      posts: 1240,
+      followers: 12500,
+      following: 0
     },
-    content: '💙 每日心理健康提醒：\n\n记住，寻求帮助是勇敢的表现，不是软弱。你的感受是有效的，你值得被关爱和理解。\n\n如果今天感觉困难，试试这些小技巧：\n• 深呼吸3次\n• 找一个让你感到安全的地方\n• 联系一个信任的朋友\n• 记住这种感觉会过去\n\n你不是一个人在战斗 💪',
-    emotion: 'support',
+    content: '💙 每日正念提醒\n\n深呼吸，专注当下。你的感受是有效的，给自己一些温柔。',
+    emotion: 'peaceful',
     timestamp: '4小时前',
     likes: 156,
     comments: 32,
-    shares: 89,
-    tags: ['每日提醒', '心理健康', '正能量'],
     isLiked: true,
-    images: []
+    image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=350&fit=crop',
+    tags: ['每日提醒', '正念', '自我关爱'],
+    height: 320
   },
   {
     id: '3',
     user: {
-      name: '阳光小雨',
+      id: 'user2',
+      name: '阳光',
       avatar: '🌸',
-      verified: false
+      verified: false,
+      posts: 67,
+      followers: 234,
+      following: 156
     },
-    content: '分享一下我最近的心情记录 📝 通过GlowCare记录了一个月的情绪变化，发现自己在周末心情明显更好。可能是因为可以多睡觉和做自己喜欢的事情吧！\n\n大家有什么让自己开心的小习惯吗？',
-    emotion: 'peaceful',
+    content: '分享我的情绪日记模板 📝 记录一个月后发现了很多有趣的模式',
+    emotion: 'satisfied',
     intensity: 7,
     timestamp: '6小时前',
     likes: 43,
     comments: 15,
-    shares: 6,
-    tags: ['情绪记录', '自我发现', '周末快乐'],
     isLiked: false,
-    images: []
+    image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=300&h=420&fit=crop',
+    tags: ['情绪日记', '自我发现'],
+    height: 300
   },
   {
     id: '4',
     user: {
+      id: 'user3',
       name: '勇敢的心',
       avatar: '💪',
-      verified: false
+      verified: false,
+      posts: 45,
+      followers: 189,
+      following: 201
     },
-    content: '想和大家分享我克服社交焦虑的小进步 🎉\n\n今天终于鼓起勇气和同事一起去吃午饭了！虽然开始很紧张，但发现大家都很友善。小步前进也是进步！\n\n给同样有社交焦虑的朋友们一些鼓励：你可以的，一小步一小步来 ❤️',
-    emotion: 'proud',
+    content: '今天的瑜伽课让我感到前所未有的平静 🧘‍♀️ 身心连接真的很奇妙',
+    emotion: 'peaceful',
     intensity: 9,
     timestamp: '8小时前',
     likes: 67,
     comments: 21,
-    shares: 12,
-    tags: ['社交焦虑', '小进步', '鼓励'],
     isLiked: true,
-    images: []
+    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=300&h=380&fit=crop',
+    tags: ['瑜伽', '正念', '身心健康'],
+    height: 340
   },
   {
     id: '5',
     user: {
-      name: '心理咨询师李医生',
+      id: 'doctor1',
+      name: '李心理医生',
       avatar: '👨‍⚕️',
       verified: true,
-      isProfessional: true
+      isProfessional: true,
+      posts: 456,
+      followers: 8900,
+      following: 23
     },
-    content: '关于情绪管理的专业建议 📚\n\n很多人认为负面情绪是不好的，但其实所有情绪都有它的价值：\n\n😢 悲伤 - 帮助我们处理失去和变化\n😠 愤怒 - 提醒我们边界被侵犯\n😰 焦虑 - 让我们对潜在威胁保持警觉\n😊 快乐 - 鼓励我们重复积极行为\n\n重要的不是消除情绪，而是学会理解和管理它们。',
+    content: '关于焦虑管理的5个实用技巧 📚\n\n1. 腹式呼吸\n2. 渐进性肌肉放松\n3. 认知重构\n4. 正念冥想\n5. 适度运动',
     emotion: 'educational',
     timestamp: '12小时前',
     likes: 198,
     comments: 45,
-    shares: 124,
-    tags: ['专业建议', '情绪管理', '心理教育'],
     isLiked: false,
-    images: []
+    image: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=300&h=360&fit=crop',
+    tags: ['专业建议', '焦虑管理', '心理技巧'],
+    height: 330
+  },
+  {
+    id: '6',
+    user: {
+      id: 'user4',
+      name: '晴天',
+      avatar: '☀️',
+      verified: false,
+      posts: 78,
+      followers: 312,
+      following: 145
+    },
+    content: '和朋友聊天后心情好了很多 💕 有时候说出来真的会轻松很多',
+    emotion: 'grateful',
+    intensity: 8,
+    timestamp: '1天前',
+    likes: 89,
+    comments: 12,
+    isLiked: false,
+    image: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=300&h=290&fit=crop',
+    tags: ['友谊', '分享', '感恩'],
+    height: 260
   }
 ];
 
 export default function SocialFeedScreen() {
   const [posts, setPosts] = useState(mockPosts);
   const [refreshing, setRefreshing] = useState(false);
-  const [newPostText, setNewPostText] = useState('');
   const [showNewPost, setShowNewPost] = useState(false);
+  const [showUserProfile, setShowUserProfile] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [newPostText, setNewPostText] = useState('');
   const [selectedEmotion, setSelectedEmotion] = useState(null);
 
   const emotions = [
     { id: 'happy', name: '开心', emoji: '😊', color: '#22c55e' },
     { id: 'sad', name: '难过', emoji: '😢', color: '#6b7280' },
     { id: 'anxious', name: '焦虑', emoji: '😰', color: '#f59e0b' },
-    { id: 'angry', name: '愤怒', emoji: '😠', color: '#ef4444' },
     { id: 'peaceful', name: '平静', emoji: '😌', color: '#06b6d4' },
     { id: 'excited', name: '兴奋', emoji: '🤩', color: '#8b5cf6' },
+    { id: 'grateful', name: '感恩', emoji: '🙏', color: '#ec4899' },
   ];
 
   const onRefresh = () => {
     setRefreshing(true);
-    // Simulate API call
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
@@ -152,6 +197,11 @@ export default function SocialFeedScreen() {
     ));
   };
 
+  const openUserProfile = (user) => {
+    setSelectedUser(user);
+    setShowUserProfile(true);
+  };
+
   const publishPost = () => {
     if (!newPostText.trim() || !selectedEmotion) {
       Alert.alert('提示', '请输入内容并选择当前心情');
@@ -161,9 +211,13 @@ export default function SocialFeedScreen() {
     const newPost = {
       id: Date.now().toString(),
       user: {
+        id: 'me',
         name: '我',
         avatar: '😊',
-        verified: false
+        verified: false,
+        posts: 1,
+        followers: 0,
+        following: 0
       },
       content: newPostText,
       emotion: selectedEmotion.id,
@@ -171,10 +225,10 @@ export default function SocialFeedScreen() {
       timestamp: '刚刚',
       likes: 0,
       comments: 0,
-      shares: 0,
-      tags: [],
       isLiked: false,
-      images: []
+      image: null,
+      tags: [],
+      height: 200
     };
 
     setPosts([newPost, ...posts]);
@@ -184,109 +238,160 @@ export default function SocialFeedScreen() {
     Alert.alert('成功', '动态发布成功！');
   };
 
-  const PostCard = ({ post }) => (
-    <View style={styles.postCard}>
-      {/* User Header */}
-      <View style={styles.postHeader}>
-        <View style={styles.userInfo}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{post.user.avatar}</Text>
+  // 瀑布流数据处理
+  const formatPostsForMasonry = (posts) => {
+    const leftColumn = [];
+    const rightColumn = [];
+    let leftHeight = 0;
+    let rightHeight = 0;
+
+    posts.forEach((post, index) => {
+      if (leftHeight <= rightHeight) {
+        leftColumn.push({ ...post, columnIndex: 0 });
+        leftHeight += post.height || 300;
+      } else {
+        rightColumn.push({ ...post, columnIndex: 1 });
+        rightHeight += post.height || 300;
+      }
+    });
+
+    return { leftColumn, rightColumn };
+  };
+
+  const { leftColumn, rightColumn } = formatPostsForMasonry(posts);
+
+  const PostCard = ({ post, style }) => (
+    <TouchableOpacity style={[styles.postCard, style]} activeOpacity={0.9}>
+      {/* 封面图片 */}
+      {post.image && (
+        <Image source={{ uri: post.image }} style={styles.postImage} />
+      )}
+      
+      {/* 内容 */}
+      <View style={styles.postContent}>
+        <Text style={styles.postText} numberOfLines={3}>
+          {post.content}
+        </Text>
+        
+        {/* 标签 */}
+        {post.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {post.tags.slice(0, 2).map((tag, index) => (
+              <View key={index} style={styles.tag}>
+                <Text style={styles.tagText}>#{tag}</Text>
+              </View>
+            ))}
           </View>
-          <View style={styles.userDetails}>
-            <View style={styles.userName}>
-              <Text style={styles.userNameText}>{post.user.name}</Text>
-              {post.user.verified && (
-                <Ionicons 
-                  name="checkmark-circle" 
-                  size={16} 
-                  color={post.user.isOfficial ? '#6366f1' : post.user.isProfessional ? '#059669' : '#22c55e'} 
-                />
-              )}
-              {post.user.isOfficial && (
-                <Text style={styles.officialTag}>官方</Text>
-              )}
-              {post.user.isProfessional && (
-                <Text style={styles.professionalTag}>专家</Text>
-              )}
-            </View>
-            <Text style={styles.timestamp}>{post.timestamp}</Text>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#9ca3af" />
-        </TouchableOpacity>
+        )}
       </View>
-
-      {/* Content */}
-      <Text style={styles.postContent}>{post.content}</Text>
-
-      {/* Emotion Badge */}
-      {post.emotion && (
-        <View style={styles.emotionBadge}>
-          <Text style={styles.emotionText}>
-            当前心情: {emotions.find(e => e.id === post.emotion)?.emoji} {emotions.find(e => e.id === post.emotion)?.name}
-            {post.intensity && ` (${post.intensity}/10)`}
-          </Text>
-        </View>
-      )}
-
-      {/* Tags */}
-      {post.tags.length > 0 && (
-        <View style={styles.tagsContainer}>
-          {post.tags.map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>#{tag}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Actions */}
-      <View style={styles.postActions}>
+      
+      {/* 底部信息 */}
+      <View style={styles.postBottom}>
         <TouchableOpacity 
-          style={styles.actionButton}
+          style={styles.userRow}
+          onPress={() => openUserProfile(post.user)}
+        >
+          <View style={styles.miniAvatar}>
+            <Text style={styles.miniAvatarText}>{post.user.avatar}</Text>
+          </View>
+          <Text style={styles.userName}>{post.user.name}</Text>
+          {post.user.verified && (
+            <Ionicons 
+              name="checkmark-circle" 
+              size={12} 
+              color={post.user.isOfficial ? '#6366f1' : post.user.isProfessional ? '#059669' : '#22c55e'} 
+            />
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.likeButton}
           onPress={() => toggleLike(post.id)}
         >
           <Ionicons 
             name={post.isLiked ? "heart" : "heart-outline"} 
-            size={20} 
+            size={16} 
             color={post.isLiked ? "#ef4444" : "#6b7280"} 
           />
-          <Text style={[styles.actionText, post.isLiked && styles.likedText]}>
+          <Text style={[styles.likeText, post.isLiked && styles.likedText]}>
             {post.likes}
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="chatbubble-outline" size={20} color="#6b7280" />
-          <Text style={styles.actionText}>{post.comments}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="share-outline" size={20} color="#6b7280" />
-          <Text style={styles.actionText}>{post.shares}</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="auto" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>心理社区</Text>
-        <TouchableOpacity 
-          style={styles.newPostButton}
-          onPress={() => setShowNewPost(true)}
-        >
-          <Ionicons name="add-circle-outline" size={24} color="#6366f1" />
-        </TouchableOpacity>
+  const UserProfileModal = () => {
+    if (!showUserProfile || !selectedUser) return null;
+    
+    return (
+      <View style={styles.modalOverlay}>
+        <View style={styles.profileModal}>
+          <View style={styles.profileHeader}>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowUserProfile(false)}
+            >
+              <Ionicons name="close" size={24} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.profileInfo}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>{selectedUser.avatar}</Text>
+            </View>
+            
+            <View style={styles.profileDetails}>
+              <View style={styles.profileName}>
+                <Text style={styles.profileNameText}>{selectedUser.name}</Text>
+                {selectedUser.verified && (
+                  <Ionicons 
+                    name="checkmark-circle" 
+                    size={20} 
+                    color={selectedUser.isOfficial ? '#6366f1' : selectedUser.isProfessional ? '#059669' : '#22c55e'} 
+                  />
+                )}
+              </View>
+              
+              {selectedUser.isOfficial && (
+                <Text style={styles.officialBadge}>GlowCare 官方账号</Text>
+              )}
+              {selectedUser.isProfessional && (
+                <Text style={styles.professionalBadge}>认证心理咨询师</Text>
+              )}
+              
+              <View style={styles.profileStats}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{selectedUser.posts}</Text>
+                  <Text style={styles.statLabel}>动态</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{selectedUser.followers}</Text>
+                  <Text style={styles.statLabel}>粉丝</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{selectedUser.following}</Text>
+                  <Text style={styles.statLabel}>关注</Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity style={styles.followButton}>
+                <Text style={styles.followButtonText}>
+                  {selectedUser.id === 'me' ? '编辑资料' : '关注'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </View>
+    );
+  };
 
-      {/* New Post Modal */}
-      {showNewPost && (
+  const NewPostModal = () => {
+    if (!showNewPost) return null;
+
+    return (
+      <View style={styles.modalOverlay}>
         <View style={styles.newPostModal}>
           <View style={styles.newPostHeader}>
             <TouchableOpacity onPress={() => setShowNewPost(false)}>
@@ -304,7 +409,7 @@ export default function SocialFeedScreen() {
             onChangeText={setNewPostText}
             placeholder="分享你的心情、想法或经验..."
             multiline
-            numberOfLines={4}
+            numberOfLines={6}
             textAlignVertical="top"
           />
           
@@ -327,9 +432,31 @@ export default function SocialFeedScreen() {
             </ScrollView>
           </View>
         </View>
-      )}
+      </View>
+    );
+  };
 
-      {/* Posts Feed */}
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="auto" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>心理社区</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.searchButton}>
+            <Ionicons name="search-outline" size={22} color="#6b7280" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.newPostButton}
+            onPress={() => setShowNewPost(true)}
+          >
+            <Ionicons name="add-outline" size={24} color="#6366f1" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 双列瀑布流 */}
       <ScrollView 
         style={styles.container}
         refreshControl={
@@ -337,22 +464,40 @@ export default function SocialFeedScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Community Guidelines */}
-        <View style={styles.guidelinesCard}>
-          <View style={styles.guidelinesHeader}>
-            <Ionicons name="information-circle" size={20} color="#6366f1" />
-            <Text style={styles.guidelinesTitle}>社区指南</Text>
-          </View>
-          <Text style={styles.guidelinesText}>
-            这里是一个安全、支持和理解的空间。请友善交流，尊重他人，分享积极正面的内容。
-          </Text>
+        {/* 社区提示 */}
+        <View style={styles.communityTip}>
+          <Ionicons name="heart" size={16} color="#ef4444" />
+          <Text style={styles.communityTipText}>在这里分享你的心情，获得温暖支持</Text>
         </View>
 
-        {/* Posts */}
-        {posts.map(post => (
-          <PostCard key={post.id} post={post} />
-        ))}
+        <View style={styles.masonryContainer}>
+          {/* 左列 */}
+          <View style={styles.column}>
+            {leftColumn.map((post) => (
+              <PostCard 
+                key={post.id} 
+                post={post} 
+                style={{ marginBottom: 12 }}
+              />
+            ))}
+          </View>
+          
+          {/* 右列 */}
+          <View style={styles.column}>
+            {rightColumn.map((post) => (
+              <PostCard 
+                key={post.id} 
+                post={post} 
+                style={{ marginBottom: 12 }}
+              />
+            ))}
+          </View>
+        </View>
       </ScrollView>
+
+      {/* Modals */}
+      <NewPostModal />
+      <UserProfileModal />
     </SafeAreaView>
   );
 }
@@ -380,13 +525,143 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchButton: {
+    padding: 8,
+    marginRight: 8,
+  },
   newPostButton: {
     padding: 8,
   },
+  communityTip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: '#fef2f2',
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 8,
+  },
+  communityTipText: {
+    fontSize: 14,
+    color: '#dc2626',
+    marginLeft: 6,
+  },
+  masonryContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+  },
+  column: {
+    flex: 1,
+    paddingHorizontal: 6,
+  },
+  postCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  postImage: {
+    width: '100%',
+    height: 120,
+    resizeMode: 'cover',
+  },
+  postContent: {
+    padding: 12,
+  },
+  postText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  tag: {
+    backgroundColor: '#f0f9ff',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 4,
+    marginBottom: 4,
+  },
+  tagText: {
+    fontSize: 10,
+    color: '#1e40af',
+    fontWeight: '500',
+  },
+  postBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    paddingTop: 0,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  miniAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  miniAvatarText: {
+    fontSize: 12,
+  },
+  userName: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  likeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  likeText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 4,
+  },
+  likedText: {
+    color: '#ef4444',
+  },
+  // 模态框样式
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
   newPostModal: {
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    width: width - 32,
+    borderRadius: 12,
+    maxHeight: height * 0.7,
   },
   newPostHeader: {
     flexDirection: 'row',
@@ -414,7 +689,7 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: '#1f2937',
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: 'top',
   },
   emotionSelector: {
@@ -449,162 +724,100 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#4b5563',
   },
-  guidelinesCard: {
-    backgroundColor: '#eff6ff',
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#dbeafe',
+  // 个人主页样式
+  profileModal: {
+    backgroundColor: 'white',
+    width: width - 32,
+    borderRadius: 16,
+    padding: 24,
   },
-  guidelinesHeader: {
+  profileHeader: {
+    alignItems: 'flex-end',
+    marginBottom: 16,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  profileInfo: {
+    alignItems: 'center',
+  },
+  profileAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  profileAvatarText: {
+    fontSize: 36,
+  },
+  profileDetails: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  profileName: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  guidelinesTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e40af',
-    marginLeft: 8,
-  },
-  guidelinesText: {
-    fontSize: 13,
-    color: '#1e40af',
-    lineHeight: 18,
-  },
-  postCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 18,
-  },
-  userDetails: {
-    flex: 1,
-  },
-  userName: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  userNameText: {
-    fontSize: 16,
-    fontWeight: '600',
+  profileNameText: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#1f2937',
-    marginRight: 6,
+    marginRight: 8,
   },
-  officialTag: {
-    fontSize: 10,
+  officialBadge: {
+    fontSize: 14,
     color: '#6366f1',
     backgroundColor: '#eff6ff',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 16,
   },
-  professionalTag: {
-    fontSize: 10,
+  professionalBadge: {
+    fontSize: 14,
     color: '#059669',
     backgroundColor: '#ecfdf5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 4,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  moreButton: {
-    padding: 4,
-  },
-  postContent: {
-    fontSize: 15,
-    color: '#374151',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  emotionBadge: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-  },
-  emotionText: {
-    fontSize: 13,
-    color: '#166534',
-    fontWeight: '500',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 12,
-  },
-  tag: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 6,
-    paddingHorizontal: 8,
     paddingVertical: 4,
-    marginRight: 8,
-    marginBottom: 4,
+    borderRadius: 8,
+    marginBottom: 16,
   },
-  tagText: {
-    fontSize: 12,
-    color: '#6366f1',
-    fontWeight: '500',
-  },
-  postActions: {
+  profileStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    width: '100%',
+    paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    paddingTop: 12,
+    borderBottomWidth: 1,
+    borderColor: '#f3f4f6',
+    marginBottom: 16,
   },
-  actionButton: {
-    flexDirection: 'row',
+  statItem: {
     alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
   },
-  actionText: {
-    fontSize: 14,
+  statNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  statLabel: {
+    fontSize: 12,
     color: '#6b7280',
-    marginLeft: 6,
+    marginTop: 4,
   },
-  likedText: {
-    color: '#ef4444',
+  followButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  followButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

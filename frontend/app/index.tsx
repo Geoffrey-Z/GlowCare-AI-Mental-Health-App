@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import EmotionTrackingScreen from './emotions';
 import ConversationAnalysisScreen from './conversations';
 import CrisisSupportScreen from './support';
-import MoodReportsScreen from './reports';
+import SocialFeedScreen from './reports';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,16 +26,24 @@ const { width, height } = Dimensions.get('window');
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
 
+// Mock user ID for demo
+const DEMO_USER_ID = 'demo-user-123';
+
 // Main component
 export default function GlowCareApp() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [loading, setLoading] = useState(false);
+  const [emotions, setEmotions] = useState([]);
+  const [reportData, setReportData] = useState(null);
 
   // Initialize user on app start
   useEffect(() => {
     initializeUser();
-  }, []);
+    if (activeTab === 'home') {
+      loadHomeData();
+    }
+  }, [activeTab]);
 
   const initializeUser = async () => {
     try {
@@ -59,6 +68,26 @@ export default function GlowCareApp() {
     }
   };
 
+  const loadHomeData = async () => {
+    try {
+      // Load recent emotions
+      const emotionsResponse = await fetch(`${API_BASE}/emotions/${DEMO_USER_ID}?limit=7`);
+      if (emotionsResponse.ok) {
+        const emotionsData = await emotionsResponse.json();
+        setEmotions(emotionsData);
+      }
+
+      // Load week report
+      const reportResponse = await fetch(`${API_BASE}/reports/${DEMO_USER_ID}/mood?period=week`);
+      if (reportResponse.ok) {
+        const reportData = await reportResponse.json();
+        setReportData(reportData);
+      }
+    } catch (error) {
+      console.error('Error loading home data:', error);
+    }
+  };
+
   const testAPIConnection = async () => {
     setLoading(true);
     try {
@@ -66,16 +95,76 @@ export default function GlowCareApp() {
       const data = await response.json();
       
       Alert.alert(
-        'API Status',
-        `Status: ${data.status}\nAI: ${data.services?.ai}\nDB: ${data.services?.database}`,
-        [{ text: 'OK' }]
+        'API状态',
+        `状态: ${data.status}\nAI: ${data.services?.ai}\n数据库: ${data.services?.database}`,
+        [{ text: '确定' }]
       );
     } catch (error) {
-      Alert.alert('Connection Error', 'Unable to connect to API');
+      Alert.alert('连接错误', '无法连接到API');
       console.error('API connection error:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calendar Heatmap Component (simplified for home page)
+  const WeeklyHeatmap = ({ emotions }) => {
+    const getDaysThisWeek = () => {
+      const today = new Date();
+      const currentDay = today.getDay();
+      const days = [];
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        days.push(date);
+      }
+      return days;
+    };
+
+    const getEmotionForDate = (date) => {
+      const dateStr = date.toDateString();
+      return emotions.find(emotion => 
+        new Date(emotion.timestamp).toDateString() === dateStr
+      );
+    };
+
+    const getIntensityColor = (intensity) => {
+      if (!intensity) return '#f3f4f6';
+      if (intensity <= 3) return '#fecaca';
+      if (intensity <= 5) return '#fde047';
+      if (intensity <= 7) return '#84cc16';
+      return '#22c55e';
+    };
+
+    const days = getDaysThisWeek();
+
+    return (
+      <View style={styles.weeklyHeatmap}>
+        <Text style={styles.heatmapTitle}>本周心情</Text>
+        <View style={styles.heatmapDays}>
+          {days.map((date, index) => {
+            const emotion = getEmotionForDate(date);
+            const isToday = date.toDateString() === new Date().toDateString();
+            
+            return (
+              <View key={index} style={styles.heatmapDay}>
+                <View
+                  style={[
+                    styles.heatmapDot,
+                    { backgroundColor: getIntensityColor(emotion?.intensity) },
+                    isToday && styles.todayDot
+                  ]}
+                />
+                <Text style={styles.heatmapDayText}>
+                  {['日', '一', '二', '三', '四', '五', '六'][date.getDay()]}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
   };
 
   // Components
@@ -108,65 +197,109 @@ export default function GlowCareApp() {
     </TouchableOpacity>
   );
 
+  const StatCard = ({ title, value, icon, color = '#6366f1' }) => (
+    <View style={styles.statCard}>
+      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
+        <Ionicons name={icon} size={20} color={color} />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statTitle}>{title}</Text>
+    </View>
+  );
+
   const WelcomeScreen = () => (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Text style={styles.welcomeTitle}>Welcome to GlowCare</Text>
+        <Text style={styles.welcomeTitle}>欢迎使用 GlowCare</Text>
         <Text style={styles.welcomeSubtitle}>
-          Your AI-powered mental health companion
+          您的AI心理健康伙伴
         </Text>
         {currentUser && (
           <Text style={styles.userGreeting}>
-            Hello, {currentUser.name}! 👋
+            你好，{currentUser.name}！👋
           </Text>
         )}
       </View>
 
+      {/* Weekly Mood Summary */}
+      {emotions.length > 0 && (
+        <View style={styles.moodSummarySection}>
+          <WeeklyHeatmap emotions={emotions} />
+        </View>
+      )}
+
+      {/* Weekly Stats */}
+      {reportData && reportData.summary && (
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>本周数据</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              title="记录次数"
+              value={reportData.summary.total_entries || 0}
+              icon="bar-chart-outline"
+              color="#6366f1"
+            />
+            <StatCard
+              title="平均心情"
+              value={`${reportData.summary.average_intensity || 0}/10`}
+              icon="pulse-outline"
+              color="#ef4444"
+            />
+            <StatCard
+              title="主要情绪"
+              value={reportData.summary.most_common_emotion || 'N/A'}
+              icon="heart-outline"
+              color="#22c55e"
+            />
+          </View>
+        </View>
+      )}
+
       <View style={styles.featuresContainer}>
-        <Text style={styles.sectionTitle}>Core Features</Text>
+        <Text style={styles.sectionTitle}>核心功能</Text>
         
         <FeatureCard
           icon="heart-outline"
-          title="Emotion Tracking"
-          description="Monitor and analyze your emotional patterns with AI"
+          title="情绪记录"
+          description="使用AI分析和监测您的情绪模式"
           color="#ef4444"
           onPress={() => setActiveTab('emotions')}
         />
         
         <FeatureCard
           icon="chatbubbles-outline"
-          title="Conversation Analysis"
-          description="Real-time support during difficult conversations"
+          title="对话分析"
+          description="困难对话中的实时支持和建议"
           color="#06b6d4"
           onPress={() => setActiveTab('conversations')}
         />
         
         <FeatureCard
           icon="shield-checkmark-outline"
-          title="Crisis Support"
-          description="Immediate help with breathing exercises and CBT"
+          title="危机支持"
+          description="呼吸练习和CBT技术的即时帮助"
           color="#f59e0b"
           onPress={() => setActiveTab('support')}
         />
         
         <FeatureCard
-          icon="analytics-outline"
-          title="Mood Reports"
-          description="Weekly and monthly insights into your mental health"
+          icon="people-outline"
+          title="心理社区"
+          description="与他人分享经验，获得支持和鼓励"
           color="#8b5cf6"
           onPress={() => setActiveTab('reports')}
         />
       </View>
 
       <View style={styles.quickActions}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.sectionTitle}>快捷操作</Text>
         
         <TouchableOpacity
           style={[styles.actionButton, styles.primaryAction]}
           onPress={() => setActiveTab('emotions')}
         >
           <Ionicons name="add-circle-outline" size={24} color="white" />
-          <Text style={styles.primaryActionText}>Log Your Mood Now</Text>
+          <Text style={styles.primaryActionText}>现在记录心情</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
@@ -180,14 +313,56 @@ export default function GlowCareApp() {
             color="#6366f1" 
           />
           <Text style={styles.secondaryActionText}>
-            {loading ? 'Testing...' : 'Test AI Connection'}
+            {loading ? '测试中...' : '测试AI连接'}
           </Text>
         </TouchableOpacity>
       </View>
 
+      {/* AI Insights Section */}
+      {reportData && reportData.ai_insights && (
+        <View style={styles.insightsSection}>
+          <Text style={styles.sectionTitle}>AI洞察</Text>
+          <View style={styles.insightsContainer}>
+            <Ionicons name="bulb-outline" size={24} color="#f59e0b" />
+            <Text style={styles.insightsText}>
+              {reportData.ai_insights}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Tips Section */}
+      <View style={styles.tipsSection}>
+        <Text style={styles.sectionTitle}>每日心理健康贴士</Text>
+        
+        <View style={styles.tipCard}>
+          <Ionicons name="sunny-outline" size={20} color="#f59e0b" />
+          <Text style={styles.tipText}>
+            <Text style={styles.tipTitle}>晨间例行：</Text>
+            以正念和意图开始您的一天
+          </Text>
+        </View>
+        
+        <View style={styles.tipCard}>
+          <Ionicons name="walk-outline" size={20} color="#22c55e" />
+          <Text style={styles.tipText}>
+            <Text style={styles.tipTitle}>身体活动：</Text>
+            即使是短暂的散步也能改善您的心情
+          </Text>
+        </View>
+        
+        <View style={styles.tipCard}>
+          <Ionicons name="people-outline" size={20} color="#6366f1" />
+          <Text style={styles.tipText}>
+            <Text style={styles.tipTitle}>社交联系：</Text>
+            联系您关心的人
+          </Text>
+        </View>
+      </View>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          🌟 Your mental health journey starts here
+          🌟 您的心理健康之旅从这里开始
         </Text>
       </View>
     </ScrollView>
@@ -202,7 +377,7 @@ export default function GlowCareApp() {
       case 'support':
         return <CrisisSupportScreen />;
       case 'reports':
-        return <MoodReportsScreen />;
+        return <SocialFeedScreen />;
       default:
         return <WelcomeScreen />;
     }
@@ -221,35 +396,35 @@ export default function GlowCareApp() {
         <TabButton
           id="home"
           icon="home-outline"
-          label="Home"
+          label="首页"
           isActive={activeTab === 'home'}
           onPress={setActiveTab}
         />
         <TabButton
           id="emotions"
           icon="heart-outline"
-          label="Emotions"
+          label="情绪"
           isActive={activeTab === 'emotions'}
           onPress={setActiveTab}
         />
         <TabButton
           id="conversations"
           icon="chatbubbles-outline"
-          label="Chat"
+          label="对话"
           isActive={activeTab === 'conversations'}
           onPress={setActiveTab}
         />
         <TabButton
           id="support"
           icon="shield-checkmark-outline"
-          label="Support"
+          label="支持"
           isActive={activeTab === 'support'}
           onPress={setActiveTab}
         />
         <TabButton
           id="reports"
-          icon="analytics-outline"
-          label="Reports"
+          icon="people-outline"
+          label="社区"
           isActive={activeTab === 'reports'}
           onPress={setActiveTab}
         />
@@ -293,7 +468,53 @@ const styles = StyleSheet.create({
     color: '#6366f1',
     fontWeight: '600',
   },
-  featuresContainer: {
+  moodSummarySection: {
+    padding: 24,
+    paddingTop: 0,
+  },
+  weeklyHeatmap: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  heatmapTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  heatmapDays: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  heatmapDay: {
+    alignItems: 'center',
+  },
+  heatmapDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  todayDot: {
+    borderColor: '#6366f1',
+  },
+  heatmapDayText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  statsSection: {
     padding: 24,
     paddingTop: 0,
   },
@@ -302,6 +523,48 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    width: '30%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  statTitle: {
+    fontSize: 11,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  featuresContainer: {
+    padding: 24,
+    paddingTop: 0,
   },
   featureCard: {
     flexDirection: 'row',
@@ -372,6 +635,62 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
+  insightsSection: {
+    padding: 24,
+    paddingTop: 0,
+  },
+  insightsContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  insightsText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginLeft: 12,
+  },
+  tipsSection: {
+    padding: 24,
+    paddingTop: 0,
+  },
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginLeft: 12,
+  },
+  tipTitle: {
+    fontWeight: '600',
+    color: '#1f2937',
+  },
   footer: {
     padding: 24,
     alignItems: 'center',
@@ -404,37 +723,6 @@ const styles = StyleSheet.create({
   },
   activeTabLabel: {
     color: '#6366f1',
-    fontWeight: '600',
-  },
-  placeholderContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  placeholderTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  placeholderDescription: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  backButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#6366f1',
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
     fontWeight: '600',
   },
 });

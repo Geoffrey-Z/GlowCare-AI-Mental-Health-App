@@ -35,6 +35,18 @@ const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
 // Mock user ID for demo
 const DEMO_USER_ID = 'demo-user-123';
 
+// Current user data
+const currentUser = {
+  id: 'me',
+  name: '我',
+  avatar: '😊',
+  verified: false,
+  posts: 12,
+  followers: 45,
+  following: 67,
+  bio: '热爱生活，关注心理健康 ✨'
+};
+
 // Mock social feed data with varied heights like Xiaohongshu
 const mockPosts = [
   {
@@ -250,6 +262,11 @@ export default function SocialFeedScreen() {
     setShowUserProfile(true);
   };
 
+  const openMyProfile = () => {
+    setSelectedUser(currentUser);
+    setShowUserProfile(true);
+  };
+
   const pickImages = async () => {
     if (Platform.OS === 'web' || !ImagePicker) {
       Alert.alert('提示', '此功能在移动设备上可用');
@@ -313,15 +330,7 @@ export default function SocialFeedScreen() {
 
     const newPost = {
       id: Date.now().toString(),
-      user: {
-        id: 'me',
-        name: '我',
-        avatar: '😊',
-        verified: false,
-        posts: 1,
-        followers: 0,
-        following: 0
-      },
+      user: currentUser,
       content: newPostText,
       emotion: selectedEmotion.id,
       intensity: 7,
@@ -481,6 +490,10 @@ export default function SocialFeedScreen() {
                 )}
               </View>
               
+              {selectedUser.bio && (
+                <Text style={styles.profileBio}>{selectedUser.bio}</Text>
+              )}
+              
               {selectedUser.isOfficial && (
                 <Text style={styles.officialBadge}>GlowCare 官方账号</Text>
               )}
@@ -503,11 +516,23 @@ export default function SocialFeedScreen() {
                 </View>
               </View>
               
-              <TouchableOpacity style={styles.followButton}>
-                <Text style={styles.followButtonText}>
-                  {selectedUser.id === 'me' ? '编辑资料' : '+ 关注'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.profileActions}>
+                {selectedUser.id === 'me' ? (
+                  <TouchableOpacity style={styles.editButton}>
+                    <Text style={styles.editButtonText}>编辑资料</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity style={styles.followButton}>
+                      <Text style={styles.followButtonText}>+ 关注</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.messageButton}>
+                      <Ionicons name="chatbubble-outline" size={16} color="#6366f1" />
+                      <Text style={styles.messageButtonText}>私信</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -625,7 +650,18 @@ export default function SocialFeedScreen() {
       
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.profileAvatarButton}
+          onPress={openMyProfile}
+        >
+          <View style={styles.headerAvatar}>
+            <Text style={styles.headerAvatarText}>{currentUser.avatar}</Text>
+          </View>
+          <Text style={styles.headerUsername}>{currentUser.name}</Text>
+        </TouchableOpacity>
+        
         <Text style={styles.title}>心理社区</Text>
+        
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.searchButton}>
             <Ionicons name="search-outline" size={22} color="#6b7280" />
@@ -703,8 +739,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+  profileAvatarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  headerAvatarText: {
+    fontSize: 16,
+  },
+  headerUsername: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1f2937',
   },
@@ -1033,6 +1090,12 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginRight: 8,
   },
+  profileBio: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
   officialBadge: {
     fontSize: 14,
     color: '#6366f1',
@@ -1074,15 +1137,50 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 4,
   },
+  profileActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+  },
   followButton: {
     backgroundColor: '#6366f1',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    marginRight: 12,
   },
   followButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  editButton: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  editButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  messageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#6366f1',
+  },
+  messageButtonText: {
+    color: '#6366f1',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });

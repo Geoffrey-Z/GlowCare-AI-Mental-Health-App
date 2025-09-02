@@ -19,6 +19,7 @@ import EmotionTrackingScreen from './emotions';
 import ConversationAnalysisScreen from './conversations';
 import CrisisSupportScreen from './support';
 import SocialFeedScreen from './reports';
+import MessagesScreen from './messages';
 
 const { width, height } = Dimensions.get('window');
 
@@ -168,16 +169,21 @@ export default function GlowCareApp() {
   };
 
   // Components
-  const TabButton = ({ id, icon, label, isActive, onPress }) => (
+  const TabButton = ({ id, icon, label, isActive, onPress, hasNotification = false }) => (
     <TouchableOpacity
       style={[styles.tabButton, isActive && styles.activeTab]}
       onPress={() => onPress(id)}
     >
-      <Ionicons 
-        name={icon} 
-        size={24} 
-        color={isActive ? '#6366f1' : '#9ca3af'} 
-      />
+      <View style={styles.tabIconContainer}>
+        <Ionicons 
+          name={icon} 
+          size={24} 
+          color={isActive ? '#6366f1' : '#9ca3af'} 
+        />
+        {hasNotification && (
+          <View style={styles.notificationDot} />
+        )}
+      </View>
       <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>
         {label}
       </Text>
@@ -289,6 +295,14 @@ export default function GlowCareApp() {
           color="#8b5cf6"
           onPress={() => setActiveTab('reports')}
         />
+        
+        <FeatureCard
+          icon="mail-outline"
+          title="消息中心"
+          description="私信交流和群组讨论，专业咨询"
+          color="#059669"
+          onPress={() => setActiveTab('messages')}
+        />
       </View>
 
       <View style={styles.quickActions}>
@@ -378,6 +392,8 @@ export default function GlowCareApp() {
         return <CrisisSupportScreen />;
       case 'reports':
         return <SocialFeedScreen />;
+      case 'messages':
+        return <MessagesScreen />;
       default:
         return <WelcomeScreen />;
     }
@@ -427,6 +443,14 @@ export default function GlowCareApp() {
           label="社区"
           isActive={activeTab === 'reports'}
           onPress={setActiveTab}
+        />
+        <TabButton
+          id="messages"
+          icon="mail-outline"
+          label="消息"
+          isActive={activeTab === 'messages'}
+          onPress={setActiveTab}
+          hasNotification={true}
         />
       </View>
     </SafeAreaView>
@@ -712,6 +736,18 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 8,
+  },
+  tabIconContainer: {
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
   },
   activeTab: {
     transform: [{ scale: 1.05 }],

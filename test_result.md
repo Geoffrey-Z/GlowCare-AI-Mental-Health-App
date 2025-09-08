@@ -227,9 +227,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "AI emotion analysis integration"
-    - "Conversation analysis endpoint"  
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -237,3 +235,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "已将后端 LLM 切换为 Doubao（Emergent Key），并提供 OpenAI 自动回退；重写提示词并统一 JSON 输出结构。请先进行后端深度测试，重点验证 /api/emotions 与 /api/conversations/analyze 的 JSON 字段与稳定性。"
+  - agent: "testing"
+    message: "✅ 后端 Doubao 集成测试完成！所有核心功能验证通过：1) /api/emotions 返回完整8字段JSON架构，强度0-10正确；2) /api/conversations/analyze 合并建议去重，危机等级0-5准确；3) /api/health 显示doubao偏好模型；4) 长文本稳定提取JSON；5) AI服务不可用时自动回退到OpenAI并保持结构化输出。后端已生产就绪。"

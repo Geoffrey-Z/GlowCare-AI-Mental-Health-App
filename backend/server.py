@@ -98,8 +98,8 @@ async def create_llm_chat(system_message: str, session_id: str = None) -> LlmCha
         session_id=session_id,
         system_message=system_message
     )
-    # Use GPT-4o-mini for cost efficiency
-    chat.with_model("openai", "gpt-4o-mini")
+    # Use GPT-4o for better analysis quality
+    chat.with_model("openai", "gpt-4o")
     return chat
 
 async def analyze_emotion_with_ai(text: str, context: str = None) -> Dict[str, Any]:

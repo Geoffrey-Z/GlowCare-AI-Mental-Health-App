@@ -367,6 +367,88 @@ class GlowCareAPITester:
         
         return all_passed
     
+    def test_long_text_stability(self):
+        """Test 5: Long Text Stability - Verify JSON extraction from long text responses"""
+        print("\n=== Testing Long Text Stability ===")
+        
+        if not self.test_user_id:
+            self.log_test("Long Text Stability", False, "No test user available")
+            return False
+        
+        # Test with very long Chinese text to stress test JSON extraction
+        long_text = """
+        我最近的生活状态非常糟糕，工作上面临着巨大的压力，每天都要加班到很晚，回到家已经筋疲力尽。
+        我的老板对我的工作总是不满意，不断地批评和指责，让我开始怀疑自己的能力。同事之间的关系也很紧张，
+        办公室政治让我感到窒息。家里的情况也不好，父母的身体健康出现问题，需要我经常往医院跑，
+        医疗费用也是一笔不小的开支。我的伴侣最近也因为工作压力变得易怒，我们经常因为小事争吵。
+        孩子的学习成绩下降，老师经常找我谈话，让我感到作为父母的失败。经济压力越来越大，
+        房贷、车贷、孩子的教育费用，每个月的开支都让我喘不过气来。我开始失眠，晚上躺在床上
+        脑子里不停地想着各种问题，越想越焦虑。白天工作时注意力无法集中，效率越来越低，
+        形成了恶性循环。我感觉自己快要崩溃了，不知道该怎么办，感觉生活没有希望，
+        每天都在痛苦中度过。我开始怀疑人生的意义，觉得自己是个失败者，对未来充满恐惧和不安。
+        """
+        
+        # Test emotion analysis with long text
+        emotion_data = {
+            "user_id": self.test_user_id,
+            "text_input": long_text.strip(),
+            "context": "长文本压力测试",
+            "source": "manual"
+        }
+        
+        success, response, error = self.make_request("POST", "/emotions", emotion_data)
+        
+        if not success:
+            self.log_test("Long Text Emotion Analysis", False, f"Failed: {error}")
+            return False
+        
+        # Validate that JSON is still extracted properly from long text
+        ai_analysis_raw = response.get("ai_analysis")
+        json_extracted = False
+        
+        if ai_analysis_raw:
+            try:
+                ai_analysis = json.loads(ai_analysis_raw) if isinstance(ai_analysis_raw, str) else ai_analysis_raw
+                required_fields = ["emotion_primary", "valence", "arousal", "risk_score", "triggers", "distortions", "actions", "summary"]
+                json_extracted = all(field in ai_analysis for field in required_fields)
+            except json.JSONDecodeError:
+                json_extracted = False
+        
+        if json_extracted:
+            self.log_test("Long Text Emotion Analysis", True, f"JSON successfully extracted from long text ({len(long_text)} chars)")
+        else:
+            self.log_test("Long Text Emotion Analysis", False, "Failed to extract valid JSON from long text response")
+        
+        # Test conversation analysis with long text
+        conversation_data = {
+            "user_id": self.test_user_id,
+            "conversation_text": long_text.strip()
+        }
+        
+        success, response, error = self.make_request("POST", "/conversations/analyze", conversation_data)
+        
+        if not success:
+            self.log_test("Long Text Conversation Analysis", False, f"Failed: {error}")
+            return False
+        
+        # Validate analysis structure for long text
+        analysis = response.get("analysis", {})
+        crisis_level = response.get("crisis_level", -1)
+        
+        analysis_valid = False
+        if analysis:
+            required_fields = ["emotion_primary", "valence", "arousal", "risk_score", "triggers", "distortions", "actions", "summary"]
+            analysis_valid = all(field in analysis for field in required_fields)
+        
+        crisis_valid = 0 <= crisis_level <= 5
+        
+        if analysis_valid and crisis_valid:
+            self.log_test("Long Text Conversation Analysis", True, f"Analysis structure valid for long text, Crisis Level: {crisis_level}")
+            return True
+        else:
+            self.log_test("Long Text Conversation Analysis", False, f"Invalid analysis structure or crisis level for long text")
+            return False
+
     def test_mood_reports(self):
         """Test 6: Mood Reports - Weekly and monthly reports"""
         print("\n=== Testing Mood Reports ===")

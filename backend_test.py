@@ -236,16 +236,17 @@ class GlowCareAPITester:
             return False
     
     def test_conversation_analysis(self):
-        """Test 4: Conversation Analysis with AI insights"""
-        print("\n=== Testing Conversation Analysis ===")
+        """Test 4: Conversation Analysis - Validate merged suggestions and crisis level"""
+        print("\n=== Testing Conversation Analysis with Doubao Integration ===")
         
         if not self.test_user_id:
             self.log_test("Conversation Analysis", False, "No test user available")
             return False
         
+        # Test with realistic Chinese conversation text
         conversation_data = {
             "user_id": self.test_user_id,
-            "conversation_text": "My boss keeps criticizing me and I feel like I'm not good enough. Every meeting feels like an attack on my abilities."
+            "conversation_text": "我的老板总是批评我，让我觉得自己什么都做不好。每次开会都感觉像是在攻击我的能力，我开始怀疑自己是不是真的不适合这份工作。"
         }
         
         success, response, error = self.make_request("POST", "/conversations/analyze", conversation_data)
@@ -263,12 +264,43 @@ class GlowCareAPITester:
         support_suggestions = response.get("support_suggestions", [])
         crisis_level = response.get("crisis_level", -1)
         
-        if analysis and isinstance(support_suggestions, list) and crisis_level >= 0:
-            details = f"Crisis Level: {crisis_level}, Suggestions: {len(support_suggestions)}, Analysis: Present"
+        # Validate crisis level is in 0-5 range
+        crisis_level_valid = 0 <= crisis_level <= 5
+        
+        # Validate analysis contains Doubao JSON schema
+        analysis_valid = False
+        if analysis:
+            required_analysis_fields = ["emotion_primary", "valence", "arousal", "risk_score", "triggers", "distortions", "actions", "summary"]
+            analysis_valid = all(field in analysis for field in required_analysis_fields)
+        
+        # Validate merged support suggestions (should be deduplicated list)
+        suggestions_valid = isinstance(support_suggestions, list) and len(support_suggestions) > 0
+        
+        if analysis and suggestions_valid and crisis_level_valid:
+            details = f"Crisis Level: {crisis_level} ({'✓' if crisis_level_valid else '✗'}), Suggestions: {len(support_suggestions)} ({'✓' if suggestions_valid else '✗'}), Analysis Schema: {'✓' if analysis_valid else '✗'}"
             self.log_test("Conversation Analysis", True, details, response)
+            
+            # Additional validation for merged suggestions
+            if analysis_valid:
+                analysis_actions = analysis.get("actions", [])
+                self.log_test("Analysis JSON Schema", True, f"Analysis contains all required Doubao fields. Actions: {len(analysis_actions)}")
+            else:
+                missing_fields = [field for field in required_analysis_fields if field not in analysis]
+                self.log_test("Analysis JSON Schema", False, f"Missing analysis fields: {missing_fields}")
+            
+            # Test for suggestion merging (should contain both AI analysis actions and crisis coping strategies)
+            unique_suggestions = len(set(support_suggestions))
+            dedup_check = unique_suggestions == len(support_suggestions)
+            self.log_test("Support Suggestions Merge", True, f"Merged {len(support_suggestions)} suggestions, Deduplicated: {'✓' if dedup_check else '✗'}")
+            
             return True
         else:
-            self.log_test("Conversation Analysis", False, "Missing analysis components", response)
+            missing_components = []
+            if not analysis: missing_components.append("analysis")
+            if not suggestions_valid: missing_components.append("support_suggestions")
+            if not crisis_level_valid: missing_components.append("crisis_level")
+            
+            self.log_test("Conversation Analysis", False, f"Missing/invalid components: {missing_components}", response)
             return False
     
     def test_crisis_support(self):

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 # API Configuration
-API_BASE_URL = "https://mindguardian-1.preview.emergentagent.com/api"
+API_BASE_URL = "https://mindmate-ai-13.preview.emergentagent.com/api"
 
 class GlowCareAPITester:
     def __init__(self):

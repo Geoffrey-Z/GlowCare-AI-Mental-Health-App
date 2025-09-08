@@ -505,12 +505,13 @@ class GlowCareAPITester:
         print(f"📡 API Base URL: {self.base_url}")
         print("=" * 60)
         
-        # Run tests in priority order
+        # Run tests in priority order - focusing on Doubao integration requirements
         tests = [
             ("Health Check", self.test_health_check),
             ("User Management", self.test_user_management),
             ("Emotion Tracking", self.test_emotion_tracking),
             ("Conversation Analysis", self.test_conversation_analysis),
+            ("Long Text Stability", self.test_long_text_stability),
             ("Crisis Support", self.test_crisis_support),
             ("Mood Reports", self.test_mood_reports)
         ]

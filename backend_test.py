@@ -62,7 +62,7 @@ class GlowCareAPITester:
             return False, None, f"Request error: {str(e)}"
     
     def test_health_check(self):
-        """Test 1: Health Check - GET /api/health"""
+        """Test 1: Health Check - GET /api/health - Verify Doubao model preference"""
         print("\n=== Testing Health Check ===")
         
         success, response, error = self.make_request("GET", "/health")
@@ -76,9 +76,20 @@ class GlowCareAPITester:
             if "status" in response and "services" in response:
                 ai_status = response.get("services", {}).get("ai", "unknown")
                 db_status = response.get("services", {}).get("database", "unknown")
+                preferred_model = response.get("services", {}).get("preferred_model", "unknown")
                 
-                details = f"Status: {response.get('status')}, AI: {ai_status}, DB: {db_status}"
+                # Check if preferred model shows doubao
+                doubao_check = "doubao" in preferred_model.lower() if preferred_model != "unknown" else False
+                
+                details = f"Status: {response.get('status')}, AI: {ai_status}, DB: {db_status}, Preferred Model: {preferred_model}, Doubao: {'✓' if doubao_check else '✗'}"
                 self.log_test("Health Check", True, details, response)
+                
+                # Additional check for Doubao preference
+                if doubao_check:
+                    self.log_test("Doubao Model Check", True, f"Preferred model correctly shows Doubao: {preferred_model}")
+                else:
+                    self.log_test("Doubao Model Check", False, f"Expected Doubao in preferred model, got: {preferred_model}")
+                
                 return True
             else:
                 self.log_test("Health Check", False, "Invalid response structure", response)

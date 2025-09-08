@@ -14,51 +14,51 @@
 # Main and testing agents must follow this exact format to maintain testing data. 
 # The testing data must be entered in yaml format Below is the data structure:
 # 
-## user_problem_statement: {problem_statement}
-## backend:
-##   - task: "Task name"
-##     implemented: true
-##     working: true  # or false or "NA"
-##     file: "file_path.py"
-##     stuck_count: 0
-##     priority: "high"  # or "medium" or "low"
-##     needs_retesting: false
-##     status_history:
-##         -working: true  # or false or "NA"
-##         -agent: "main"  # or "testing" or "user"
-##         -comment: "Detailed comment about status"
-##
-## frontend:
-##   - task: "Task name"
-##     implemented: true
-##     working: true  # or false or "NA"
-##     file: "file_path.js"
-##     stuck_count: 0
-##     priority: "high"  # or "medium" or "low"
-##     needs_retesting: false
-##     status_history:
-##         -working: true  # or false or "NA"
-##         -agent: "main"  # or "testing" or "user"
-##         -comment: "Detailed comment about status"
-##
-## metadata:
-##   created_by: "main_agent"
-##   version: "1.0"
-##   test_sequence: 0
-##   run_ui: false
-##
-## test_plan:
-##   current_focus:
-##     - "Task name 1"
-##     - "Task name 2"
-##   stuck_tasks:
-##     - "Task name with persistent issues"
-##   test_all: false
-##   test_priority: "high_first"  # or "sequential" or "stuck_first"
-##
-## agent_communication:
-##     -agent: "main"  # or "testing" or "user"
-##     -message: "Communication message between agents"
+# ## user_problem_statement: {problem_statement}
+# ## backend:
+# ##   - task: "Task name"
+# ##     implemented: true
+# ##     working: true  # or false or "NA"
+# ##     file: "file_path.py"
+# ##     stuck_count: 0
+# ##     priority: "high"  # or "medium" or "low"
+# ##     needs_retesting: false
+# ##     status_history:
+# ##         -working: true  # or false or "NA"
+# ##         -agent: "main"  # or "testing" or "user"
+# ##         -comment: "Detailed comment about status"
+# ##
+# ## frontend:
+# ##   - task: "Task name"
+# ##     implemented: true
+# ##     working: true  # or false or "NA"
+# ##     file: "file_path.js"
+# ##     stuck_count: 0
+# ##     priority: "high"  # or "medium" or "low"
+# ##     needs_retesting: false
+# ##     status_history:
+# ##         -working: true  # or false or "NA"
+# ##         -agent: "main"  # or "testing" or "user"
+# ##         -comment: "Detailed comment about status"
+# ##
+# ## metadata:
+# ##   created_by: "main_agent"
+# ##   version: "1.0"
+# ##   test_sequence: 0
+# ##   run_ui: false
+# ##
+# ## test_plan:
+# ##   current_focus:
+# ##     - "Task name 1"
+# ##     - "Task name 2"
+# ##   stuck_tasks:
+# ##     - "Task name with persistent issues"
+# ##   test_all: false
+# ##   test_priority: "high_first"  # or "sequential" or "stuck_first"
+# ##
+# ## agent_communication:
+# ##     -agent: "main"  # or "testing" or "user"
+# ##     -message: "Communication message between agents"
 
 # Protocol Guidelines for Main agent
 #
@@ -122,18 +122,33 @@ backend:
 
   - task: "AI emotion analysis integration"
     implemented: true
-    working: true
+    working: "NA"
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Integrated emergentintegrations library with GPT-4o-mini for emotion analysis and crisis support"
-      - working: true
-        agent: "testing"
-        comment: "AI integration fully functional with proper emotion detection and crisis assessment"
+      - working: false
+        agent: "user"
+        comment: "用户反馈：对话分析效果很差，不如千问/豆包基础模型"
+      - working: "NA"
+        agent: "main"
+        comment: "升级至 Doubao（通过 Emergent LLM Key，提供者可回退），重写提示词并统一 JSON 输出：emotion_primary、valence、arousal、risk_score、triggers、distortions、actions、summary。为长文本加入处理提示。"
+
+  - task: "Conversation analysis endpoint"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "合并 AI 分析与危机支持，支持动作建议去重合并；危机等级保留。"
 
 frontend:
   - task: "Mobile app foundation with navigation"
@@ -201,26 +216,18 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.0"
-  test_sequence: 1
+  version: "2.1"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Phase 2: Emotion tracking screens with speech-to-text"
-    - "Phase 2: Conversation analysis screen"  
-    - "Phase 2: Crisis support screen"
-    - "Phase 2: Mood reports with calendar heatmap"
+    - "AI emotion analysis integration"
+    - "Conversation analysis endpoint"  
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented Phase 1 of GlowCare app with comprehensive backend API including emotion tracking, AI analysis, crisis support, and mood reports. Frontend has foundation with navigation and feature overview. Ready for backend testing."
-  - agent: "testing"
-    message: "🎉 BACKEND TESTING COMPLETED SUCCESSFULLY! All 6 core API test categories passed (11 individual tests). Key findings: (1) Health check confirms API and AI services are operational, (2) User management working with proper CRUD operations, (3) Emotion tracking with AI analysis functioning correctly - detected emotions with proper intensity scoring, (4) Conversation analysis providing crisis level assessment and support suggestions, (5) Crisis support system working for all types (crisis/breathing/cbt/general), (6) Mood reports generating with AI insights. Edge cases handled appropriately. Backend is production-ready."
-  - agent: "testing"
-    message: "🎉 FRONTEND MOBILE TESTING COMPLETED SUCCESSFULLY! GlowCare mobile app is fully functional and production-ready. Comprehensive testing on mobile dimensions (390x844) confirmed: ✅ All navigation working (tabs, feature cards, back buttons), ✅ API integration functional (user creation, health check), ✅ Mobile UX excellent (responsive design, proper touch targets, smooth scrolling), ✅ Visual design professional and consistent. All 8 test categories passed with no critical issues. App ready for deployment."
-  - agent: "main" 
-    message: "🚀 PHASE 2 IMPLEMENTED! Created comprehensive emotion tracking screens with: (1) Emotion tracking with text input, voice recording, mood slider, and AI analysis, (2) Conversation analysis with speech-to-text, crisis level detection, and support suggestions, (3) Crisis support with animated breathing exercises, CBT techniques, and emergency resources, (4) Mood reports with calendar heatmap visualization and AI insights. All screens integrate with backend APIs and provide rich user experiences. Ready for testing."
+    message: "已将后端 LLM 切换为 Doubao（Emergent Key），并提供 OpenAI 自动回退；重写提示词并统一 JSON 输出结构。请先进行后端深度测试，重点验证 /api/emotions 与 /api/conversations/analyze 的 JSON 字段与稳定性。"

@@ -136,18 +136,18 @@ class GlowCareAPITester:
             return False
     
     def test_emotion_tracking(self):
-        """Test 3: Emotion Tracking - Create and retrieve emotions"""
-        print("\n=== Testing Emotion Tracking ===")
+        """Test 3: Emotion Tracking - Validate Doubao JSON schema and intensity"""
+        print("\n=== Testing Emotion Tracking with Doubao Schema ===")
         
         if not self.test_user_id:
             self.log_test("Emotion Tracking", False, "No test user available")
             return False
         
-        # Test emotion creation with AI analysis
+        # Test emotion creation with AI analysis - realistic Chinese text
         emotion_data = {
             "user_id": self.test_user_id,
-            "text_input": "I'm feeling really anxious about my presentation tomorrow",
-            "context": "Work presentation causing stress",
+            "text_input": "我最近工作压力很大，总是担心明天的重要会议，感觉自己准备不够充分，心里很焦虑",
+            "context": "工作会议压力",
             "source": "manual"
         }
         
@@ -161,14 +161,65 @@ class GlowCareAPITester:
             self.log_test("Emotion Creation", False, "Invalid emotion creation response", response)
             return False
             
-        # Validate AI analysis
+        # Validate basic response structure
         emotion_id = response["id"]
         detected_emotion = response.get("emotion", "unknown")
         intensity = response.get("intensity", 0)
-        ai_analysis = response.get("ai_analysis")
+        ai_analysis_raw = response.get("ai_analysis")
         
-        details = f"Detected: {detected_emotion}, Intensity: {intensity}, AI Analysis: {'Present' if ai_analysis else 'Missing'}"
+        # Validate intensity is in 0-10 range
+        intensity_valid = 0 <= intensity <= 10
+        
+        details = f"Detected: {detected_emotion}, Intensity: {intensity} ({'✓' if intensity_valid else '✗ Invalid range'})"
         self.log_test("Emotion Creation", True, details, response)
+        
+        # Parse and validate AI analysis JSON schema
+        if ai_analysis_raw:
+            try:
+                ai_analysis = json.loads(ai_analysis_raw) if isinstance(ai_analysis_raw, str) else ai_analysis_raw
+                
+                # Required Doubao JSON fields
+                required_fields = [
+                    "emotion_primary", "valence", "arousal", "risk_score", 
+                    "triggers", "distortions", "actions", "summary"
+                ]
+                
+                missing_fields = []
+                field_validations = {}
+                
+                for field in required_fields:
+                    if field not in ai_analysis:
+                        missing_fields.append(field)
+                    else:
+                        value = ai_analysis[field]
+                        if field == "emotion_primary":
+                            valid_emotions = ["joy", "sadness", "anger", "fear", "anxiety", "disgust", "surprise", "shame", "guilt", "love", "neutral"]
+                            field_validations[field] = value in valid_emotions
+                        elif field == "valence":
+                            field_validations[field] = -1 <= value <= 1
+                        elif field == "arousal":
+                            field_validations[field] = 0 <= value <= 1
+                        elif field == "risk_score":
+                            field_validations[field] = 0 <= value <= 1
+                        elif field in ["triggers", "distortions", "actions"]:
+                            field_validations[field] = isinstance(value, list)
+                        elif field == "summary":
+                            field_validations[field] = isinstance(value, str) and len(value) > 0
+                
+                if missing_fields:
+                    self.log_test("Doubao JSON Schema", False, f"Missing required fields: {missing_fields}", ai_analysis)
+                else:
+                    invalid_fields = [k for k, v in field_validations.items() if not v]
+                    if invalid_fields:
+                        self.log_test("Doubao JSON Schema", False, f"Invalid field values: {invalid_fields}", ai_analysis)
+                    else:
+                        schema_details = f"All 8 required fields present and valid. Primary emotion: {ai_analysis.get('emotion_primary')}, Risk: {ai_analysis.get('risk_score')}"
+                        self.log_test("Doubao JSON Schema", True, schema_details, ai_analysis)
+                        
+            except json.JSONDecodeError:
+                self.log_test("Doubao JSON Schema", False, "AI analysis is not valid JSON", ai_analysis_raw)
+        else:
+            self.log_test("Doubao JSON Schema", False, "No AI analysis provided", response)
         
         # Test emotion retrieval
         success, response, error = self.make_request("GET", f"/emotions/{self.test_user_id}")

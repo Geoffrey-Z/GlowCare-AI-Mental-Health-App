@@ -122,11 +122,11 @@ backend:
 
   - task: "AI emotion analysis integration"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -137,18 +137,24 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "升级至 Doubao（通过 Emergent LLM Key，提供者可回退），重写提示词并统一 JSON 输出：emotion_primary、valence、arousal、risk_score、triggers、distortions、actions、summary。为长文本加入处理提示。"
+      - working: true
+        agent: "testing"
+        comment: "✅ DOUBAO INTEGRATION VERIFIED! /api/emotions POST 返回完整 JSON 架构（8个必需字段），强度范围0-10正确，支持中文文本分析。Doubao模型不可用时自动回退到OpenAI gpt-4o-mini，保持结构化输出。长文本（467字符）稳定提取JSON。"
 
   - task: "Conversation analysis endpoint"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "合并 AI 分析与危机支持，支持动作建议去重合并；危机等级保留。"
+      - working: true
+        agent: "testing"
+        comment: "✅ CONVERSATION ANALYSIS VERIFIED! /api/conversations/analyze POST 返回合并后的support_suggestions（10条去重建议），analysis包含完整Doubao JSON架构，crisis_level范围0-5正确（测试值3和5）。长文本分析稳定，危机等级评估准确。"
 
 frontend:
   - task: "Mobile app foundation with navigation"

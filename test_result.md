@@ -246,6 +246,11 @@ test_plan:
 
 agent_communication:
   - agent: "main"
+  - agent: "user"
+    message: "用户反馈：开始录音/录音对话没有显示。"
+  - agent: "main"
+    message: "修复：为对话分析页新增录音横幅与计时器（原生端可见），并在 Web 预览环境提供录音不支持的明确提示与示例转写回填；优化权限请求与错误处理。请求重新测试前端对话页录音交互与回退文案显示。"
+
     message: "已将后端 LLM 切换为 Doubao（Emergent Key），并提供 OpenAI 自动回退；重写提示词并统一 JSON 输出结构。请先进行后端深度测试，重点验证 /api/emotions 与 /api/conversations/analyze 的 JSON 字段与稳定性。"
   - agent: "testing"
     message: "✅ 后端 Doubao 集成测试完成！所有核心功能验证通过：1) /api/emotions 返回完整8字段JSON架构，强度0-10正确；2) /api/conversations/analyze 合并建议去重，危机等级0-5准确；3) /api/health 显示doubao偏好模型；4) 长文本稳定提取JSON；5) AI服务不可用时自动回退到OpenAI并保持结构化输出。后端已生产就绪。"

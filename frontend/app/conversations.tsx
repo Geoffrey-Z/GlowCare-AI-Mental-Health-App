@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Text,
   View,
@@ -32,14 +32,81 @@ export default function ConversationAnalysisScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [permissionResponse, requestPermission] = Audio.usePermissions();
 
+  // Recording UI helpers
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Crisis overlay
   const [showCrisisOverlay, setShowCrisisOverlay] = useState(false);
   const [crisisData, setCrisisData] = useState<any>(null);
 
+  const startRecordingTimer = () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    setRecordSeconds(0);
+    recordTimerRef.current = setInterval(() => {
+      setRecordSeconds((s) => s + 1);
+    }, 1000);
+  };
+
+  const stopRecordingTimer = () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+  };
+
+  const formatTime = (sec: number) => {
+    const m = Math.floor(sec / 60)
+      .toString()
+      .padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const handleWebRecordingFallback = () => {
+    Alert.alert(
+      '提示',
+      '当前 Web 预览不支持麦克风录音。将使用示例转写填入文本框，建议使用手机端 Expo Go 体验完整录音流程。',
+      [
+        { text: '取消' },
+        {
+          text: '使用示例',
+          onPress: () =>
+            setConversationText(
+              '我尝试表达自己的观点，但对方打断我几次，心里挺受挫的，也有点生气。'
+            ),
+        },
+      ]
+    );
+  };
+
   const startRecording = async () => {
+    if (Platform.OS === 'web') {
+      handleWebRecordingFallback();
+      return;
+    }
+
     try {
-      if (permissionResponse?.status !== 'granted') {
-        await requestPermission();
+      // Request mic permission if not granted
+      if (!permissionResponse || permissionResponse.status !== 'granted') {
+        const perm = await requestPermission();
+        if (!perm || perm.status !== 'granted') {
+          Alert.alert(
+            '麦克风权限未授予',
+            '无法开始录音。是否使用示例文本替代？',
+            [
+              { text: '取消' },
+              {
+                text: '使用示例',
+                onPress: () =>
+                  setConversationText(
+                    '今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。'
+                  ),
+              },
+            ]
+          );
+          return;
+        }
       }
 
       await Audio.setAudioModeAsync({
@@ -52,6 +119,7 @@ export default function ConversationAnalysisScreen() {
       );
       setRecording(recording);
       setIsRecording(true);
+      startRecordingTimer();
     } catch (err) {
       console.error('Failed to start recording', err);
       Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
@@ -60,15 +128,20 @@ export default function ConversationAnalysisScreen() {
 
   const stopRecording = async () => {
     setIsRecording(false);
+    stopRecordingTimer();
     setIsProcessing(true);
     try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      const uri = recording.getURI();
-      // Simulated STT result for demo
-      const simulatedConversation = '今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。';
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        const uri = recording.getURI();
+        // In a real app, send uri to STT. Here we simulate.
+      }
+
+      const simulatedConversation =
+        '我和领导开会时紧张得说不出话，后来一直在自责，担心大家觉得我不专业。';
       setConversationText(simulatedConversation);
-      Alert.alert('Conversation Recorded', 'Your conversation has been processed. You can edit it before analysis.');
+      Alert.alert('Conversation Recorded', '已将转写文本填入输入框，您可在分析前进行修改。');
     } catch (error) {
       console.error('Error processing recording:', error);
       Alert.alert('Error', 'Failed to process recording');
@@ -192,6 +265,14 @@ export default function ConversationAnalysisScreen() {
             />
           </View>
 
+          {/* Recording Status */}
+          {isRecording && (
+            <View style={styles.recordingBanner}>
+              <View style={styles.blinkDot} />
+              <Text style={styles.recordingText}>Recording... {formatTime(recordSeconds)}</Text>
+            </View>
+          )}
+
           {/* Voice Recording Section */}
           <View style={styles.inputSection}>
             <Text style={styles.sectionTitle}>Or record your thoughts</Text>
@@ -206,9 +287,12 @@ export default function ConversationAnalysisScreen() {
                 <Ionicons name={isRecording ? 'stop' : 'mic'} size={24} color="white" />
               )}
               <Text style={styles.recordButtonText}>
-                {isProcessing ? 'Processing...' : isRecording ? 'Stop Recording' : 'Record Conversation'}
+                {isProcessing ? 'Processing...' : isRecording ? 'Stop Recording' : 'Start Recording'}
               </Text>
             </TouchableOpacity>
+            {Platform.OS === 'web' && (
+              <Text style={styles.webNote}>Note: Web 预览不支持麦克风录音，请使用手机端体验。</Text>
+            )}
           </View>
 
           {/* Analyze Button */}
@@ -379,9 +463,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'white', borderRadius: 12, padding: 12, fontSize: 16, color: '#1f2937',
     borderWidth: 1, borderColor: '#e5e7eb', minHeight: 120,
   },
+  recordingBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca', marginHorizontal: 16, marginTop: 4, padding: 8, borderRadius: 8 },
+  blinkDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444', marginRight: 8 },
+  recordingText: { color: '#991b1b', fontWeight: '600' },
   recordButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6366f1', padding: 12, borderRadius: 12 },
   recordingButton: { backgroundColor: '#ef4444' },
   recordButtonText: { color: 'white', fontSize: 16, fontWeight: '600', marginLeft: 8 },
+  webNote: { marginTop: 8, color: '#6b7280', fontSize: 12 },
   analyzeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6366f1', padding: 14, borderRadius: 12, marginHorizontal: 16 },
   disabledButton: { opacity: 0.6 },
   analyzeButtonText: { color: 'white', fontSize: 16, fontWeight: '600', marginLeft: 8 },

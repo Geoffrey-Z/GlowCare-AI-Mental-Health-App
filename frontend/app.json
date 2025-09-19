@@ -1,18 +1,5 @@
 {
   "expo": {
-    "plugins": [
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "允许 GlowCare 访问麦克风以录音分析对话。"
-        }
-      ]
-    ]
-  }
-}
-
-{
-  "expo": {
     "name": "frontend",
     "slug": "frontend",
     "version": "1.0.0",

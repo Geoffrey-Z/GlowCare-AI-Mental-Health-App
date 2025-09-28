@@ -30,6 +30,7 @@ const useAudioRecorder = ExpoAudio?.useAudioRecorder
   ? ExpoAudio.useAudioRecorder
   : (() => ({
       uri: null,
+      start: async () => {},
       record: () => {},
       stop: async () => {},
       prepareToRecordAsync: async () => {},
@@ -110,17 +111,20 @@ export default function EmotionTrackingScreen() {
   const ensureMicPermission = async (): Promise<boolean> => {
     try {
       const current = await getRecordingPermissionsAsync();
+      console.log('[Mic] current perm =', current);
       if (current?.granted) {
         setHasPermission(true);
         setPermCanAskAgain(!!current?.canAskAgain);
         return true;
       }
       const asked = await requestRecordingPermissionsAsync();
+      console.log('[Mic] asked perm =', asked);
       const granted = !!asked?.granted;
       setHasPermission(granted);
       setPermCanAskAgain(!!asked?.canAskAgain);
       return granted;
     } catch (e) {
+      console.warn('[Mic] ensure permission error', e);
       return false;
     }
   };
@@ -164,16 +168,23 @@ export default function EmotionTrackingScreen() {
         return;
       }
 
-      await setAudioModeAsync?.({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      // iOS 必须先设置音频模式才允许录音
+      await setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+
       if (audioRecorder?.prepareToRecordAsync) {
         await audioRecorder.prepareToRecordAsync();
       }
-      audioRecorder?.record?.();
+      if (audioRecorder?.start) {
+        await audioRecorder.start();
+      } else if (audioRecorder?.record) {
+        audioRecorder.record();
+      }
       setIsRecording(true);
       startRecordingTimer();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to start recording', err);
-      Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
+      const msg = typeof err?.message === 'string' ? err.message : 'Please check microphone permissions.';
+      Alert.alert('Error', `Failed to start recording. ${msg}`);
     }
   };
 

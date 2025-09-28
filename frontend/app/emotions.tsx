@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Text,
   View,
@@ -15,8 +15,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Speech from 'expo-speech';
-import { Audio } from 'expo-av';
 import Slider from '@react-native-community/slider';
+
+// Try to use expo-audio if available; provide safe stubs if not installed (keeps web/CI working)
+let ExpoAudio: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  ExpoAudio = require('expo-audio');
+} catch (e) {
+  ExpoAudio = null;
+}
+const useAudioRecorder = ExpoAudio?.useAudioRecorder
+  ? ExpoAudio.useAudioRecorder
+  : (() => ({
+      uri: null,
+      record: () => {},
+      stop: async () => {},
+      prepareToRecordAsync: async () => {},
+    }));
+const RecordingPresets = ExpoAudio?.RecordingPresets || { HIGH_QUALITY: {} };
+const requestRecordingPermissionsAsync = ExpoAudio?.requestRecordingPermissionsAsync
+  ? ExpoAudio.requestRecordingPermissionsAsync
+  : async () => ({ granted: false });
 
 const { width } = Dimensions.get('window');
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -30,13 +50,22 @@ export default function EmotionTrackingScreen() {
   const [moodIntensity, setMoodIntensity] = useState(5);
   const [context, setContext] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [recentEmotions, setRecentEmotions] = useState([]);
-  const [permissionResponse, requestPermission] = Audio.usePermissions();
+  const [recentEmotions, setRecentEmotions] = useState<any[]>([]);
+  const [hasPermission, setHasPermission] = useState(false);
+
+  // recorder (stubbed on web/when expo-audio not installed)
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  // timer for recording banner
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadRecentEmotions();
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    };
   }, []);
 
   const loadRecentEmotions = async () => {
@@ -51,23 +80,79 @@ export default function EmotionTrackingScreen() {
     }
   };
 
+  const startRecordingTimer = () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    setRecordSeconds(0);
+    recordTimerRef.current = setInterval(() => {
+      setRecordSeconds((s) => s + 1);
+    }, 1000);
+  };
+
+  const stopRecordingTimer = () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+  };
+
+  const formatTime = (sec: number) => {
+    const m = Math.floor(sec / 60)
+      .toString()
+      .padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   const startRecording = async () => {
+    // Web 环境直接回退
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        '提示',
+        '当前 Web 预览不支持麦克风录音。将使用示例转写填入文本框，建议使用手机端 Expo Go 体验完整录音流程。',
+        [
+          { text: '取消' },
+          {
+            text: '使用示例',
+            onPress: () => setTextInput('我现在有点焦虑，但也在努力调节自己。'),
+          },
+        ]
+      );
+      return;
+    }
+
+    // expo-audio 不可用时回退
+    if (!ExpoAudio || !useAudioRecorder) {
+      Alert.alert('录音不可用', '当前环境未安装 expo-audio。将使用示例文本回填。');
+      setTextInput('今天有些压力，我想先做个简单的呼吸练习。');
+      return;
+    }
+
     try {
-      if (permissionResponse.status !== 'granted') {
-        console.log('Requesting permission..');
-        await requestPermission();
+      if (!hasPermission) {
+        const { granted } = await requestRecordingPermissionsAsync();
+        if (!granted) {
+          Alert.alert(
+            '麦克风权限未授予',
+            '无法开始录音。是否使用示例文本替代？',
+            [
+              { text: '取消' },
+              {
+                text: '使用示例',
+                onPress: () => setTextInput('我和朋友有些误会，心里有点难受。'),
+              },
+            ]
+          );
+          return;
+        }
+        setHasPermission(true);
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      if (audioRecorder?.prepareToRecordAsync) {
+        await audioRecorder.prepareToRecordAsync();
+      }
+      audioRecorder?.record?.();
       setIsRecording(true);
+      startRecordingTimer();
     } catch (err) {
       console.error('Failed to start recording', err);
       Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
@@ -76,39 +161,32 @@ export default function EmotionTrackingScreen() {
 
   const stopRecording = async () => {
     setIsRecording(false);
+    stopRecordingTimer();
     setIsProcessing(true);
-    
+
     try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
-      
-      const uri = recording.getURI();
-      
-      // For now, we'll simulate speech-to-text conversion
-      // In a real implementation, you would process the audio file
-      const simulatedText = "I'm feeling anxious about my upcoming presentation";
+      if (audioRecorder?.stop) {
+        await audioRecorder.stop();
+      }
+      const uri = audioRecorder?.uri;
+      console.log('Emotion voice recording saved to:', uri);
+
+      // Simulate STT
+      const simulatedText = '我对即将到来的汇报有点紧张，但也期待能表现好。';
       setTextInput(simulatedText);
-      
-      Alert.alert(
-        'Voice Recorded', 
-        'Your voice has been processed and converted to text. You can edit it before submitting.',
-        [{ text: 'OK' }]
-      );
-      
+
+      Alert.alert('Voice Recorded', '已将转写文本填入输入框，您可在提交前编辑。');
     } catch (error) {
       console.error('Error processing recording:', error);
       Alert.alert('Error', 'Failed to process recording');
     } finally {
-      setRecording(null);
       setIsProcessing(false);
     }
   };
 
   const submitEmotion = async () => {
     if (!textInput.trim()) {
-      Alert.alert('Input Required', 'Please enter how you\'re feeling or record a voice note.');
+      Alert.alert('Input Required', "Please enter how you're feeling or record a voice note.");
       return;
     }
 
@@ -119,7 +197,7 @@ export default function EmotionTrackingScreen() {
         user_id: DEMO_USER_ID,
         text_input: textInput,
         context: context || null,
-        source: 'manual'
+        source: 'manual',
       };
 
       const response = await fetch(`${API_BASE}/emotions`, {
@@ -132,7 +210,7 @@ export default function EmotionTrackingScreen() {
 
       if (response.ok) {
         const result = await response.json();
-        
+
         Alert.alert(
           'Emotion Logged Successfully!',
           `Detected: ${result.emotion} (Intensity: ${result.intensity}/10)\n\nYour feelings have been recorded and analyzed.`,
@@ -143,7 +221,7 @@ export default function EmotionTrackingScreen() {
         setTextInput('');
         setContext('');
         setMoodIntensity(5);
-        
+
         // Reload recent emotions
         loadRecentEmotions();
       } else {
@@ -157,15 +235,15 @@ export default function EmotionTrackingScreen() {
     }
   };
 
-  const getMoodColor = (intensity) => {
-    if (intensity <= 2) return '#ef4444'; // Red - Very negative
-    if (intensity <= 4) return '#f59e0b'; // Orange - Negative
-    if (intensity <= 6) return '#eab308'; // Yellow - Neutral
-    if (intensity <= 8) return '#84cc16'; // Light green - Positive
-    return '#22c55e'; // Green - Very positive
+  const getMoodColor = (intensity: number) => {
+    if (intensity <= 2) return '#ef4444';
+    if (intensity <= 4) return '#f59e0b';
+    if (intensity <= 6) return '#eab308';
+    if (intensity <= 8) return '#84cc16';
+    return '#22c55e';
   };
 
-  const getMoodLabel = (intensity) => {
+  const getMoodLabel = (intensity: number) => {
     if (intensity <= 2) return 'Very Low';
     if (intensity <= 4) return 'Low';
     if (intensity <= 6) return 'Neutral';
@@ -173,15 +251,19 @@ export default function EmotionTrackingScreen() {
     return 'Excellent';
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    return (
+      date.toLocaleDateString() +
+      ' ' +
+      date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="auto" />
-      
+
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>How are you feeling?</Text>
@@ -207,34 +289,40 @@ export default function EmotionTrackingScreen() {
         {/* Voice Recording Section */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionTitle}>Or record a voice note</Text>
+          {isRecording && (
+            <View style={styles.recordingBanner}>
+              <View style={styles.blinkDot} />
+              <Text style={styles.recordingText}>Recording... {formatTime(recordSeconds)}</Text>
+            </View>
+          )}
           <TouchableOpacity
-            style={[
-              styles.recordButton,
-              isRecording && styles.recordingButton
-            ]}
+            style={[styles.recordButton, isRecording && styles.recordingButton]}
             onPress={isRecording ? stopRecording : startRecording}
             disabled={isProcessing}
           >
             {isProcessing ? (
               <ActivityIndicator color="white" size="small" />
             ) : (
-              <Ionicons 
-                name={isRecording ? "stop" : "mic"} 
-                size={24} 
-                color="white" 
+              <Ionicons
+                name={isRecording ? 'stop' : 'mic'}
+                size={24}
+                color="white"
               />
             )}
             <Text style={styles.recordButtonText}>
               {isProcessing ? 'Processing...' : isRecording ? 'Stop Recording' : 'Start Recording'}
             </Text>
           </TouchableOpacity>
+          {Platform.OS === 'web' && (
+            <Text style={styles.webNote}>Note: Web 预览不支持麦克风录音，请使用手机端体验。</Text>
+          )}
         </View>
 
         {/* Mood Intensity Slider */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionTitle}>Mood Intensity</Text>
           <View style={styles.sliderContainer}>
-            <Text style={[styles.moodLabel, { color: getMoodColor(moodIntensity) }]}>
+            <Text style={[styles.moodLabel, { color: getMoodColor(moodIntensity) }] }>
               {getMoodLabel(moodIntensity)} ({moodIntensity}/10)
             </Text>
             <Slider
@@ -270,10 +358,7 @@ export default function EmotionTrackingScreen() {
 
         {/* Submit Button */}
         <TouchableOpacity
-          style={[
-            styles.submitButton,
-            (!textInput.trim() || isProcessing) && styles.disabledButton
-          ]}
+          style={[styles.submitButton, (!textInput.trim() || isProcessing) && styles.disabledButton]}
           onPress={submitEmotion}
           disabled={!textInput.trim() || isProcessing}
         >
@@ -295,19 +380,15 @@ export default function EmotionTrackingScreen() {
               <View key={emotion.id} style={styles.emotionCard}>
                 <View style={styles.emotionHeader}>
                   <Text style={styles.emotionType}>{emotion.emotion}</Text>
-                  <Text style={styles.emotionIntensity}>
-                    {emotion.intensity}/10
-                  </Text>
+                  <Text style={styles.emotionIntensity}>{emotion.intensity}/10</Text>
                 </View>
                 <Text style={styles.emotionText} numberOfLines={2}>
                   {emotion.text_input}
                 </Text>
-                <Text style={styles.emotionDate}>
-                  {formatDate(emotion.timestamp)}
-                </Text>
+                <Text style={styles.emotionDate}>{formatDate(emotion.timestamp)}</Text>
               </View>
             ))}
-            
+
             <TouchableOpacity style={styles.viewAllButton}>
               <Text style={styles.viewAllText}>View All Entries</Text>
               <Ionicons name="arrow-forward" size={16} color="#6366f1" />
@@ -363,14 +444,23 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     minHeight: 100,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
+  recordingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginBottom: 8,
+    padding: 8,
+    borderRadius: 8,
+  },
+  blinkDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444', marginRight: 8 },
+  recordingText: { color: '#991b1b', fontWeight: '600' },
   recordButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -379,55 +469,28 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  recordingButton: {
-    backgroundColor: '#ef4444',
-  },
-  recordButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
+  recordingButton: { backgroundColor: '#ef4444' },
+  recordButtonText: { color: 'white', fontSize: 16, fontWeight: '600', marginLeft: 8 },
+  webNote: { marginTop: 8, color: '#6b7280', fontSize: 12 },
   sliderContainer: {
     backgroundColor: 'white',
     padding: 20,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  moodLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  sliderLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  sliderLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
+  moodLabel: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
+  slider: { width: '100%', height: 40 },
+  sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  sliderLabel: { fontSize: 12, color: '#6b7280' },
   contextInput: {
     backgroundColor: 'white',
     borderRadius: 12,
@@ -438,10 +501,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     minHeight: 60,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
@@ -455,79 +515,30 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 8,
   },
-  disabledButton: {
-    backgroundColor: '#9ca3af',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  recentSection: {
-    padding: 24,
-    paddingTop: 0,
-  },
+  disabledButton: { backgroundColor: '#9ca3af' },
+  submitButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold', marginLeft: 8 },
+  recentSection: { padding: 24, paddingTop: 0 },
   emotionCard: {
     backgroundColor: 'white',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  emotionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  emotionType: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6366f1',
-    textTransform: 'capitalize',
-  },
-  emotionIntensity: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  emotionText: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  emotionDate: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    marginTop: 8,
-  },
-  viewAllText: {
-    color: '#6366f1',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 4,
-  },
+  emotionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  emotionType: { fontSize: 16, fontWeight: '600', color: '#6366f1', textTransform: 'capitalize' },
+  emotionIntensity: { fontSize: 14, fontWeight: '500', color: '#6b7280' },
+  emotionText: { fontSize: 14, color: '#4b5563', marginBottom: 8, lineHeight: 20 },
+  emotionDate: { fontSize: 12, color: '#9ca3af' },
+  viewAllButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, marginTop: 8 },
+  viewAllText: { color: '#6366f1', fontSize: 16, fontWeight: '600', marginRight: 4 },
 });

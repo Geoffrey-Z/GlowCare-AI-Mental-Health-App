@@ -18,27 +18,26 @@ import { StatusBar } from 'expo-status-bar';
 import * as Speech from 'expo-speech';
 import Slider from '@react-native-community/slider';
 
+// Dynamic import to keep web/CI working
 let ExpoAudio: any = null;
 try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   ExpoAudio = require('expo-audio');
 } catch (e) {
   ExpoAudio = null;
 }
+
+// Pull APIs from either root or nested Audio namespace
+const AudioNS: any = ExpoAudio?.Audio ?? ExpoAudio ?? {};
 const useAudioRecorder = ExpoAudio?.useAudioRecorder
   ? ExpoAudio.useAudioRecorder
-  : (() => ({
-      uri: null,
-      start: async () => {},
-      record: () => {},
-      stop: async () => {},
-      prepareToRecordAsync: async () => {},
-    }));
+  : (() => ({ uri: null, start: async () => {}, record: () => {}, stop: async () => {}, prepareToRecordAsync: async () => {} }));
 const RecordingPresets = ExpoAudio?.RecordingPresets || { HIGH_QUALITY: {} };
 const requestRecordingPermissionsAsync =
-  ExpoAudio?.requestRecordingPermissionsAsync || ExpoAudio?.requestPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
+  AudioNS?.requestRecordingPermissionsAsync || AudioNS?.requestPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
 const getRecordingPermissionsAsync =
-  ExpoAudio?.getRecordingPermissionsAsync || ExpoAudio?.getPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
-const setAudioModeAsync = ExpoAudio?.setAudioModeAsync || (async (_opts: any) => {});
+  AudioNS?.getRecordingPermissionsAsync || AudioNS?.getPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
+const setAudioModeAsync = AudioNS?.setAudioModeAsync || (async (_opts: any) => {});
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -85,9 +84,7 @@ export default function EmotionTrackingScreen() {
   const startRecordingTimer = () => {
     if (recordTimerRef.current) clearInterval(recordTimerRef.current);
     setRecordSeconds(0);
-    recordTimerRef.current = setInterval(() => {
-      setRecordSeconds((s) => s + 1);
-    }, 1000);
+    recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
   };
 
   const stopRecordingTimer = () => {
@@ -98,9 +95,7 @@ export default function EmotionTrackingScreen() {
   };
 
   const formatTime = (sec: number) => {
-    const m = Math.floor(sec / 60)
-      .toString()
-      .padStart(2, '0');
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
     const s = (sec % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
@@ -124,18 +119,16 @@ export default function EmotionTrackingScreen() {
   };
 
   const ensureIOSAudioMode = async () => {
-    // Try minimal first
     try {
       await setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       await wait(120);
       return true;
     } catch {}
-    // Try extended options
     try {
       await setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
-        interruptionModeIOS: 1, // fallback value for duck/mix
+        interruptionModeIOS: 1,
         staysActiveInBackground: false,
       });
       await wait(120);
@@ -148,10 +141,9 @@ export default function EmotionTrackingScreen() {
 
   const diagnostics = async () => {
     const perm = await getRecordingPermissionsAsync();
-    let modeOk = false;
+    let modeOk = true;
     try {
       await setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      modeOk = true;
     } catch {
       modeOk = false;
     }
@@ -215,7 +207,6 @@ export default function EmotionTrackingScreen() {
     setIsRecording(false);
     stopRecordingTimer();
     setIsProcessing(true);
-
     try {
       if (audioRecorder?.stop) await audioRecorder.stop();
       const uri = audioRecorder?.uri;
@@ -236,23 +227,10 @@ export default function EmotionTrackingScreen() {
       Alert.alert('Input Required', "Please enter how you're feeling or record a voice note.");
       return;
     }
-
     setIsProcessing(true);
-
     try {
-      const emotionData = {
-        user_id: DEMO_USER_ID,
-        text_input: textInput,
-        context: context || null,
-        source: 'manual',
-      };
-
-      const response = await fetch(`${API_BASE}/emotions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emotionData),
-      });
-
+      const emotionData = { user_id: DEMO_USER_ID, text_input: textInput, context: context || null, source: 'manual' };
+      const response = await fetch(`${API_BASE}/emotions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(emotionData) });
       if (response.ok) {
         const result = await response.json();
         Alert.alert('Emotion Logged Successfully!', `Detected: ${result.emotion} (Intensity: ${result.intensity}/10)\n\nYour feelings have been recorded and analyzed.`, [{ text: 'OK' }]);
@@ -278,15 +256,7 @@ export default function EmotionTrackingScreen() {
     if (intensity <= 8) return '#84cc16';
     return '#22c55e';
   };
-
-  const getMoodLabel = (intensity: number) => {
-    if (intensity <= 2) return 'Very Low';
-    if (intensity <= 4) return 'Low';
-    if (intensity <= 6) return 'Neutral';
-    if (intensity <= 8) return 'Good';
-    return 'Excellent';
-  };
-
+  const getMoodLabel = (intensity: number) => (intensity <= 2 ? 'Very Low' : intensity <= 4 ? 'Low' : intensity <= 6 ? 'Neutral' : intensity <= 8 ? 'Good' : 'Excellent');
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -295,20 +265,15 @@ export default function EmotionTrackingScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="auto" />
-
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>How are you feeling?</Text>
           <Text style={styles.subtitle}>Express your emotions through text, voice, or both</Text>
         </View>
-
-        {/* Text Input Section */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionTitle}>Tell us about your feelings</Text>
           <TextInput style={styles.textInput} value={textInput} onChangeText={setTextInput} placeholder="I'm feeling... (e.g., anxious, happy, stressed, excited)" multiline numberOfLines={4} textAlignVertical="top" />
         </View>
-
-        {/* Voice Recording Section */}
         <View style={styles.inputSection}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={styles.sectionTitle}>Or record a voice note</Text>
@@ -328,14 +293,10 @@ export default function EmotionTrackingScreen() {
           </TouchableOpacity>
           {Platform.OS === 'web' && <Text style={styles.webNote}>Note: Web 预览不支持麦克风录音，请使用手机端体验。</Text>}
         </View>
-
-        {/* Mood Intensity Slider */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionTitle}>Mood Intensity</Text>
           <View style={styles.sliderContainer}>
-            <Text style={[styles.moodLabel, { color: getMoodColor(moodIntensity) }]}>
-              {getMoodLabel(moodIntensity)} ({moodIntensity}/10)
-            </Text>
+            <Text style={[styles.moodLabel, { color: getMoodColor(moodIntensity) }]}>{getMoodLabel(moodIntensity)} ({moodIntensity}/10)</Text>
             <Slider style={styles.slider} minimumValue={1} maximumValue={10} step={1} value={moodIntensity} onValueChange={setMoodIntensity} minimumTrackTintColor={getMoodColor(moodIntensity)} maximumTrackTintColor="#e5e7eb" thumbStyle={{ backgroundColor: getMoodColor(moodIntensity) }} />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabel}>Very Low</Text>
@@ -343,20 +304,14 @@ export default function EmotionTrackingScreen() {
             </View>
           </View>
         </View>
-
-        {/* Context Section */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionTitle}>Context (Optional)</Text>
           <TextInput style={styles.contextInput} value={context} onChangeText={setContext} placeholder="What's happening? (work, relationships, health, etc.)" multiline numberOfLines={2} />
         </View>
-
-        {/* Submit Button */}
         <TouchableOpacity style={[styles.submitButton, (!textInput.trim() || isProcessing) && styles.disabledButton]} onPress={submitEmotion} disabled={!textInput.trim() || isProcessing}>
           {isProcessing ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="heart" size={24} color="white" />}
           <Text style={styles.submitButtonText}>{isProcessing ? 'Analyzing...' : 'Log My Emotion'}</Text>
         </TouchableOpacity>
-
-        {/* Recent Emotions */}
         {recentEmotions.length > 0 && (
           <View style={styles.recentSection}>
             <Text style={styles.sectionTitle}>Recent Entries</Text>
@@ -366,9 +321,7 @@ export default function EmotionTrackingScreen() {
                   <Text style={styles.emotionType}>{emotion.emotion}</Text>
                   <Text style={styles.emotionIntensity}>{emotion.intensity}/10</Text>
                 </View>
-                <Text style={styles.emotionText} numberOfLines={2}>
-                  {emotion.text_input}
-                </Text>
+                <Text style={styles.emotionText} numberOfLines={2}>{emotion.text_input}</Text>
                 <Text style={styles.emotionDate}>{formatDate(emotion.timestamp)}</Text>
               </View>
             ))}

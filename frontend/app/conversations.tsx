@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,9 +34,11 @@ const useAudioRecorder = ExpoAudio?.useAudioRecorder
       prepareToRecordAsync: async () => {},
     }));
 const RecordingPresets = ExpoAudio?.RecordingPresets || { HIGH_QUALITY: {} };
-const requestRecordingPermissionsAsync = ExpoAudio?.requestRecordingPermissionsAsync
-  ? ExpoAudio.requestRecordingPermissionsAsync
-  : async () => ({ granted: false });
+const requestRecordingPermissionsAsync =
+  ExpoAudio?.requestRecordingPermissionsAsync || ExpoAudio?.requestPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
+const getRecordingPermissionsAsync =
+  ExpoAudio?.getRecordingPermissionsAsync || ExpoAudio?.getPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
+const setAudioModeAsync = ExpoAudio?.setAudioModeAsync || (async (_opts: any) => {});
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
@@ -50,6 +53,7 @@ export default function ConversationAnalysisScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [permCanAskAgain, setPermCanAskAgain] = useState(true);
 
   // Initialize audio recorder (stubbed on web/when expo-audio not installed)
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -85,6 +89,24 @@ export default function ConversationAnalysisScreen() {
     return `${m}:${s}`;
   };
 
+  const ensureMicPermission = async () => {
+    try {
+      const current = await getRecordingPermissionsAsync();
+      if (current?.granted) {
+        setHasPermission(true);
+        setPermCanAskAgain(!!current?.canAskAgain);
+        return true;
+      }
+      const asked = await requestRecordingPermissionsAsync();
+      const granted = !!asked?.granted;
+      setHasPermission(granted);
+      setPermCanAskAgain(!!asked?.canAskAgain);
+      return granted;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const handleWebRecordingFallback = () => {
     Alert.alert(
       '提示',
@@ -103,7 +125,6 @@ export default function ConversationAnalysisScreen() {
   };
 
   const startRecording = async () => {
-    // Web 环境直接回退
     if (Platform.OS === 'web') {
       handleWebRecordingFallback();
       return;
@@ -117,36 +138,32 @@ export default function ConversationAnalysisScreen() {
     }
 
     try {
-      if (!hasPermission) {
-        const { granted } = await requestRecordingPermissionsAsync();
-        if (!granted) {
-          Alert.alert(
-            '麦克风权限未授予',
-            '无法开始录音。是否使用示例文本替代？',
-            [
+      const granted = await ensureMicPermission();
+      if (!granted) {
+        const actions = permCanAskAgain
+          ? [
               { text: '取消' },
-              {
-                text: '使用示例',
-                onPress: () =>
-                  setConversationText(
-                    '今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。'
-                  ),
-              },
+              { text: '再次请求', onPress: () => ensureMicPermission() },
+              { text: '使用示例', onPress: () => setConversationText('今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。') },
             ]
-          );
-          return;
-        }
-        setHasPermission(true);
+          : [
+              { text: '取消' },
+              { text: '去设置', onPress: () => Linking.openSettings() },
+              { text: '使用示例', onPress: () => setConversationText('今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。') },
+            ];
+        Alert.alert('麦克风权限未授予', '请在系统设置中为 Expo Go 开启麦克风权限。', actions);
+        return;
       }
 
+      await setAudioModeAsync?.({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       if (audioRecorder?.prepareToRecordAsync) {
         await audioRecorder.prepareToRecordAsync();
       }
       audioRecorder?.record?.();
       setIsRecording(true);
       startRecordingTimer();
-    } catch (error) {
-      console.error('Failed to start recording', error);
+    } catch (err) {
+      console.error('Failed to start recording', err);
       Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
     }
   };
@@ -217,8 +234,7 @@ export default function ConversationAnalysisScreen() {
       const data = await resp.json();
       setCrisisData(data);
       setShowCrisisOverlay(true);
-    } catch (error) {
-      console.error('Error fetching crisis support:', error);
+    } catch (e) {
       setCrisisData({
         immediate_support: '我在这里支持你，我们一起一步一步来。',
         coping_strategies: ['做3次深呼吸', '联系一个信任的人', '喝一杯温水'],

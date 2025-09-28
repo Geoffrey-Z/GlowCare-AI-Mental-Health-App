@@ -10,6 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,9 +35,11 @@ const useAudioRecorder = ExpoAudio?.useAudioRecorder
       prepareToRecordAsync: async () => {},
     }));
 const RecordingPresets = ExpoAudio?.RecordingPresets || { HIGH_QUALITY: {} };
-const requestRecordingPermissionsAsync = ExpoAudio?.requestRecordingPermissionsAsync
-  ? ExpoAudio.requestRecordingPermissionsAsync
-  : async () => ({ granted: false });
+const requestRecordingPermissionsAsync =
+  ExpoAudio?.requestRecordingPermissionsAsync || ExpoAudio?.requestPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
+const getRecordingPermissionsAsync =
+  ExpoAudio?.getRecordingPermissionsAsync || ExpoAudio?.getPermissionsAsync || (async () => ({ granted: false, canAskAgain: false }));
+const setAudioModeAsync = ExpoAudio?.setAudioModeAsync || (async (_opts: any) => {});
 
 const { width } = Dimensions.get('window');
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -53,6 +56,7 @@ export default function EmotionTrackingScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [recentEmotions, setRecentEmotions] = useState<any[]>([]);
   const [hasPermission, setHasPermission] = useState(false);
+  const [permCanAskAgain, setPermCanAskAgain] = useState(true);
 
   // recorder (stubbed on web/when expo-audio not installed)
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -103,6 +107,24 @@ export default function EmotionTrackingScreen() {
     return `${m}:${s}`;
   };
 
+  const ensureMicPermission = async (): Promise<boolean> => {
+    try {
+      const current = await getRecordingPermissionsAsync();
+      if (current?.granted) {
+        setHasPermission(true);
+        setPermCanAskAgain(!!current?.canAskAgain);
+        return true;
+      }
+      const asked = await requestRecordingPermissionsAsync();
+      const granted = !!asked?.granted;
+      setHasPermission(granted);
+      setPermCanAskAgain(!!asked?.canAskAgain);
+      return granted;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const startRecording = async () => {
     // Web 环境直接回退
     if (Platform.OS === 'web') {
@@ -111,10 +133,7 @@ export default function EmotionTrackingScreen() {
         '当前 Web 预览不支持麦克风录音。将使用示例转写填入文本框，建议使用手机端 Expo Go 体验完整录音流程。',
         [
           { text: '取消' },
-          {
-            text: '使用示例',
-            onPress: () => setTextInput('我现在有点焦虑，但也在努力调节自己。'),
-          },
+          { text: '使用示例', onPress: () => setTextInput('我现在有点焦虑，但也在努力调节自己。') },
         ]
       );
       return;
@@ -128,25 +147,24 @@ export default function EmotionTrackingScreen() {
     }
 
     try {
-      if (!hasPermission) {
-        const { granted } = await requestRecordingPermissionsAsync();
-        if (!granted) {
-          Alert.alert(
-            '麦克风权限未授予',
-            '无法开始录音。是否使用示例文本替代？',
-            [
+      const granted = await ensureMicPermission();
+      if (!granted) {
+        const actions = permCanAskAgain
+          ? [
               { text: '取消' },
-              {
-                text: '使用示例',
-                onPress: () => setTextInput('我和朋友有些误会，心里有点难受。'),
-              },
+              { text: '再次请求', onPress: () => ensureMicPermission() },
+              { text: '使用示例', onPress: () => setTextInput('我和朋友有些误会，心里有点难受。') },
             ]
-          );
-          return;
-        }
-        setHasPermission(true);
+          : [
+              { text: '取消' },
+              { text: '去设置', onPress: () => Linking.openSettings() },
+              { text: '使用示例', onPress: () => setTextInput('我和朋友有些误会，心里有点难受。') },
+            ];
+        Alert.alert('麦克风权限未授予', '请在系统设置中为 Expo Go 开启麦克风权限。', actions);
+        return;
       }
 
+      await setAudioModeAsync?.({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       if (audioRecorder?.prepareToRecordAsync) {
         await audioRecorder.prepareToRecordAsync();
       }

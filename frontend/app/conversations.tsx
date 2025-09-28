@@ -15,7 +15,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { Audio } from 'expo-av';
+
+// Try to use expo-audio if available; provide safe stubs if not installed (keeps web/CI working)
+let ExpoAudio: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  ExpoAudio = require('expo-audio');
+} catch (e) {
+  ExpoAudio = null;
+}
+const useAudioRecorder = ExpoAudio?.useAudioRecorder
+  ? ExpoAudio.useAudioRecorder
+  : (() => ({
+      uri: null,
+      record: () => {},
+      stop: async () => {},
+      prepareToRecordAsync: async () => {},
+    }));
+const RecordingPresets = ExpoAudio?.RecordingPresets || { HIGH_QUALITY: {} };
+const requestRecordingPermissionsAsync = ExpoAudio?.requestRecordingPermissionsAsync
+  ? ExpoAudio.requestRecordingPermissionsAsync
+  : async () => ({ granted: false });
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
@@ -28,9 +48,11 @@ export default function ConversationAnalysisScreen() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [permissionResponse, requestPermission] = Audio.usePermissions();
+  const [hasPermission, setHasPermission] = useState(false);
+
+  // Initialize audio recorder (stubbed on web/when expo-audio not installed)
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   // Recording UI helpers
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -81,16 +103,23 @@ export default function ConversationAnalysisScreen() {
   };
 
   const startRecording = async () => {
+    // Web 环境直接回退
     if (Platform.OS === 'web') {
       handleWebRecordingFallback();
       return;
     }
 
+    // expo-audio 不可用时回退
+    if (!ExpoAudio || !useAudioRecorder) {
+      Alert.alert('录音不可用', '当前环境未安装 expo-audio。将使用示例文本回填。');
+      setConversationText('今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。');
+      return;
+    }
+
     try {
-      // Request mic permission if not granted
-      if (!permissionResponse || permissionResponse.status !== 'granted') {
-        const perm = await requestPermission();
-        if (!perm || perm.status !== 'granted') {
+      if (!hasPermission) {
+        const { granted } = await requestRecordingPermissionsAsync();
+        if (!granted) {
           Alert.alert(
             '麦克风权限未授予',
             '无法开始录音。是否使用示例文本替代？',
@@ -107,21 +136,17 @@ export default function ConversationAnalysisScreen() {
           );
           return;
         }
+        setHasPermission(true);
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      if (audioRecorder?.prepareToRecordAsync) {
+        await audioRecorder.prepareToRecordAsync();
+      }
+      audioRecorder?.record?.();
       setIsRecording(true);
       startRecordingTimer();
-    } catch (err) {
-      console.error('Failed to start recording', err);
+    } catch (error) {
+      console.error('Failed to start recording', error);
       Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
     }
   };
@@ -131,12 +156,11 @@ export default function ConversationAnalysisScreen() {
     stopRecordingTimer();
     setIsProcessing(true);
     try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-        const uri = recording.getURI();
-        // In a real app, send uri to STT. Here we simulate.
+      if (audioRecorder?.stop) {
+        await audioRecorder.stop();
       }
+      const uri = audioRecorder?.uri;
+      console.log('Recording saved to:', uri);
 
       const simulatedConversation =
         '我和领导开会时紧张得说不出话，后来一直在自责，担心大家觉得我不专业。';
@@ -146,7 +170,6 @@ export default function ConversationAnalysisScreen() {
       console.error('Error processing recording:', error);
       Alert.alert('Error', 'Failed to process recording');
     } finally {
-      setRecording(null);
       setIsProcessing(false);
     }
   };
@@ -171,7 +194,6 @@ export default function ConversationAnalysisScreen() {
       if (!response.ok) throw new Error('Failed to analyze conversation');
       const result = await response.json();
       setAnalysisResult(result);
-      // Auto trigger crisis overlay if risk is high
       const risk = result?.analysis?.risk_score ?? 0;
       const crisisLevel = result?.crisis_level ?? 0;
       if (risk >= 0.6 || crisisLevel >= 4) {
@@ -195,8 +217,8 @@ export default function ConversationAnalysisScreen() {
       const data = await resp.json();
       setCrisisData(data);
       setShowCrisisOverlay(true);
-    } catch (e) {
-      // even if support fails, still show minimal overlay
+    } catch (error) {
+      console.error('Error fetching crisis support:', error);
       setCrisisData({
         immediate_support: '我在这里支持你，我们一起一步一步来。',
         coping_strategies: ['做3次深呼吸', '联系一个信任的人', '喝一杯温水'],
@@ -415,11 +437,11 @@ export default function ConversationAnalysisScreen() {
             </View>
             <View style={styles.tipCard}>
               <Ionicons name="chatbubble-outline" size={20} color="#6366f1" />
-              <Text style={styles.tipText}><Text style={styles.tipTitle}>Use "I" Statements: </Text>Express your feelings without blaming others</Text>
+              <Text style={styles.tipText}><Text style={styles.tipTitle}>{'Use "I" Statements: '}</Text>Express your feelings without blaming others</Text>
             </View>
             <View style={styles.tipCard}>
               <Ionicons name="pause-outline" size={20} color="#f59e0b" />
-              <Text style={styles.tipText}><Text style={styles.tipTitle}>Take Breaks: </Text>It's okay to pause and collect your thoughts</Text>
+              <Text style={styles.tipText}><Text style={styles.tipTitle}>Take Breaks: </Text>{"It's okay to pause and collect your thoughts"}</Text>
             </View>
           </View>
         </ScrollView>

@@ -33,7 +33,15 @@
           "resizeMode": "contain",
           "backgroundColor": "#000"
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "允许 GlowCare 访问麦克风以录音分析对话。"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

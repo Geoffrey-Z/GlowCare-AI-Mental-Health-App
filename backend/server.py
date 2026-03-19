@@ -93,6 +93,10 @@ class MoodReport(BaseModel):
     recommendations: List[str]
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
+class ConversationListResponse(BaseModel):
+    items: List[ConversationEntry]
+    next_cursor: Optional[str] = None  # ISO timestamp string for next page
+
 # Helper Functions
 async def _safe_llm_call(system_message: str, prompt: str) -> Dict[str, Any]:
     """Try preferred Doubao provider first, then alternate, then fallback to OpenAI."""
@@ -348,6 +352,40 @@ async def analyze_conversation(conversation_data: ConversationCreate):
 
     await db.conversations.insert_one(conversation_entry.dict())
     return conversation_entry
+
+@api_router.get("/conversations/{user_id}/history", response_model=ConversationListResponse)
+async def get_conversation_history(user_id: str, limit: int = 20, cursor: Optional[str] = None):
+    # Build query
+    query: Dict[str, Any] = {"user_id": user_id}
+    dt_cursor: Optional[datetime] = None
+    if cursor:
+        try:
+            # Support both ISO with Z and without
+            if cursor.endswith('Z'):
+                cursor = cursor.replace('Z', '+00:00')
+            dt_cursor = datetime.fromisoformat(cursor)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid cursor format. Use ISO timestamp.")
+    if dt_cursor:
+        query["timestamp"] = {"$lt": dt_cursor}
+
+    docs = await db.conversations.find(query).sort("timestamp", -1).limit(limit).to_list(limit)
+    items = [ConversationEntry(**doc) for doc in docs]
+
+    next_cursor: Optional[str] = None
+    if len(items) == limit:
+        # Use last item's timestamp as next cursor
+        last_ts = items[-1].timestamp
+        if isinstance(last_ts, datetime):
+            next_cursor = last_ts.isoformat()
+    return ConversationListResponse(items=items, next_cursor=next_cursor)
+
+@api_router.get("/conversations/detail/{conversation_id}", response_model=ConversationEntry)
+async def get_conversation_detail(conversation_id: str):
+    doc = await db.conversations.find_one({"id": conversation_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return ConversationEntry(**doc)
 
 # Crisis Support
 @api_router.post("/support/crisis")

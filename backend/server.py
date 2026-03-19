@@ -30,10 +30,10 @@ api_router = APIRouter(prefix="/api")
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
 # Preferred providers/models (do not require .env changes; can be overridden if present)
-PREFERRED_PROVIDER = os.environ.get('LLM_PROVIDER', 'doubao')
-PREFERRED_MODEL = os.environ.get('LLM_MODEL', 'doubao-1.5-pro')
-ALT_PROVIDER = os.environ.get('LLM_PROVIDER_ALT', 'volcano')
-ALT_MODEL = os.environ.get('LLM_MODEL_ALT', 'doubao-1.5-pro-32k')
+PREFERRED_PROVIDER = os.environ.get('LLM_PROVIDER', 'anthropic')
+PREFERRED_MODEL = os.environ.get('LLM_MODEL', 'claude-4-sonnet-20250514')
+ALT_PROVIDER = os.environ.get('LLM_PROVIDER_ALT', 'openai')
+ALT_MODEL = os.environ.get('LLM_MODEL_ALT', 'gpt-4.1')
 FALLBACK_PROVIDER = os.environ.get('LLM_PROVIDER_FALLBACK', 'openai')
 FALLBACK_MODEL = os.environ.get('LLM_MODEL_FALLBACK', 'gpt-4o-mini')
 
@@ -96,6 +96,15 @@ class MoodReport(BaseModel):
 class ConversationListResponse(BaseModel):
     items: List[ConversationEntry]
     next_cursor: Optional[str] = None  # ISO timestamp string for next page
+
+class UserSettingsData(BaseModel):
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-4-sonnet-20250514"
+    risk_threshold: float = 0.6   # 0.0–1.0: alert when risk >= this
+    crisis_threshold: int = 4     # 0–5: show crisis overlay when level >= this
+    language: str = "zh"          # "zh" | "en"
+    daily_reminder: bool = False
+    reminder_time: str = "20:00"  # HH:MM
 
 # Helper Functions
 async def _safe_llm_call(system_message: str, prompt: str) -> Dict[str, Any]:
@@ -386,6 +395,32 @@ async def get_conversation_detail(conversation_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return ConversationEntry(**doc)
+
+# User Settings
+@api_router.get("/users/{user_id}/settings", response_model=UserSettingsData)
+async def get_user_settings(user_id: str):
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    settings = user.get("settings") or {}
+    defaults = UserSettingsData()
+    return UserSettingsData(
+        llm_provider=settings.get("llm_provider", defaults.llm_provider),
+        llm_model=settings.get("llm_model", defaults.llm_model),
+        risk_threshold=float(settings.get("risk_threshold", defaults.risk_threshold)),
+        crisis_threshold=int(settings.get("crisis_threshold", defaults.crisis_threshold)),
+        language=settings.get("language", defaults.language),
+        daily_reminder=bool(settings.get("daily_reminder", defaults.daily_reminder)),
+        reminder_time=settings.get("reminder_time", defaults.reminder_time),
+    )
+
+@api_router.put("/users/{user_id}/settings", response_model=UserSettingsData)
+async def update_user_settings(user_id: str, settings: UserSettingsData):
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    await db.users.update_one({"id": user_id}, {"$set": {"settings": settings.dict()}})
+    return settings
 
 # Crisis Support
 @api_router.post("/support/crisis")

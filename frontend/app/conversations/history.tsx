@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -44,26 +45,41 @@ type ConversationItem = {
 };
 
 type PageResp = { items: ConversationItem[]; next_cursor?: string | null };
+type SortKey = 'newest' | 'oldest' | 'risk_desc' | 'crisis_desc';
+type CrisisFilter = 'all' | 'high' | 'normal';
+
+const SORT_OPTIONS: { key: SortKey; label: string; icon: string }[] = [
+  { key: 'newest',     label: '最新',   icon: 'time-outline' },
+  { key: 'oldest',     label: '最早',   icon: 'time-outline' },
+  { key: 'risk_desc',  label: '风险↓',  icon: 'warning-outline' },
+  { key: 'crisis_desc',label: '危机↓',  icon: 'alert-circle-outline' },
+];
 
 export default function ConversationHistoryScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<ConversationItem[]>([]);
+  const [allItems, setAllItems] = useState<ConversationItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filters
+  const [filterEmotion, setFilterEmotion] = useState<string | null>(null);
+  const [filterCrisis, setFilterCrisis] = useState<CrisisFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [showFilters, setShowFilters] = useState(false);
+
   const loadPage = async (cursor?: string | null, isRefresh = false) => {
     if (loading && !isRefresh) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: '20' });
+      const params = new URLSearchParams({ limit: '50' }); // load more for client filtering
       if (cursor) params.set('cursor', cursor);
       const res = await fetch(`${API_BASE}/conversations/${DEMO_USER_ID}/history?${params}`);
       if (!res.ok) throw new Error('加载失败，请重试');
       const data: PageResp = await res.json();
-      setItems(prev => (cursor && !isRefresh ? [...prev, ...data.items] : data.items));
+      setAllItems(prev => (cursor && !isRefresh ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor ?? null);
       setError(null);
     } catch (e: any) {
@@ -86,6 +102,42 @@ export default function ConversationHistoryScreen() {
   const onEndReached = () => {
     if (nextCursor && !loading) loadPage(nextCursor);
   };
+
+  // Derived filtered + sorted list
+  const displayedItems = useMemo(() => {
+    let result = [...allItems];
+
+    // Emotion filter
+    if (filterEmotion) {
+      result = result.filter(it => (it?.analysis?.emotion_primary || 'neutral') === filterEmotion);
+    }
+
+    // Crisis filter
+    if (filterCrisis === 'high') {
+      result = result.filter(it => Number(it.crisis_level ?? 0) >= 3);
+    } else if (filterCrisis === 'normal') {
+      result = result.filter(it => Number(it.crisis_level ?? 0) < 3);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortKey === 'newest') return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      if (sortKey === 'oldest') return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      if (sortKey === 'risk_desc') return Number(b?.analysis?.risk_score ?? 0) - Number(a?.analysis?.risk_score ?? 0);
+      if (sortKey === 'crisis_desc') return Number(b.crisis_level ?? 0) - Number(a.crisis_level ?? 0);
+      return 0;
+    });
+
+    return result;
+  }, [allItems, filterEmotion, filterCrisis, sortKey]);
+
+  // Get unique emotions from loaded items
+  const availableEmotions = useMemo(() => {
+    const set = new Set(allItems.map(it => it?.analysis?.emotion_primary || 'neutral'));
+    return Array.from(set);
+  }, [allItems]);
+
+  const hasActiveFilters = filterEmotion !== null || filterCrisis !== 'all' || sortKey !== 'newest';
 
   const renderItem = ({ item }: { item: ConversationItem }) => {
     const primary = item?.analysis?.emotion_primary || 'neutral';
@@ -149,13 +201,98 @@ export default function ConversationHistoryScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="auto" />
+
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.title}>对话分析历史</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          onPress={() => setShowFilters(v => !v)}
+          style={[styles.filterToggleBtn, hasActiveFilters && styles.filterToggleBtnActive]}
+        >
+          <Ionicons name="options-outline" size={20} color={hasActiveFilters ? '#6366f1' : '#374151'} />
+          {hasActiveFilters && <View style={styles.filterDot} />}
+        </TouchableOpacity>
       </View>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <View style={styles.filterPanel}>
+          {/* Emotion filter */}
+          <Text style={styles.filterSectionLabel}>情绪类型</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            <TouchableOpacity
+              style={[styles.filterChip, filterEmotion === null && styles.filterChipActive]}
+              onPress={() => setFilterEmotion(null)}
+            >
+              <Text style={[styles.filterChipText, filterEmotion === null && styles.filterChipTextActive]}>全部</Text>
+            </TouchableOpacity>
+            {availableEmotions.map(emo => {
+              const info = EMOTION_MAP[emo] ?? EMOTION_MAP['neutral'];
+              const selected = filterEmotion === emo;
+              return (
+                <TouchableOpacity
+                  key={emo}
+                  style={[styles.filterChip, selected && { borderColor: info.color, backgroundColor: info.color + '20' }]}
+                  onPress={() => setFilterEmotion(selected ? null : emo)}
+                >
+                  <Text style={{ fontSize: 14 }}>{info.emoji}</Text>
+                  <Text style={[styles.filterChipText, selected && { color: info.color }]}>{info.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Crisis filter */}
+          <Text style={[styles.filterSectionLabel, { marginTop: 10 }]}>危机等级</Text>
+          <View style={styles.crisisFilterRow}>
+            {([['all', '全部'], ['high', '高风险 ≥3'], ['normal', '正常 <3']] as [CrisisFilter, string][]).map(([key, label]) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.filterChip, filterCrisis === key && styles.filterChipActive]}
+                onPress={() => setFilterCrisis(key)}
+              >
+                <Text style={[styles.filterChipText, filterCrisis === key && styles.filterChipTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Sort */}
+          <Text style={[styles.filterSectionLabel, { marginTop: 10 }]}>排序方式</Text>
+          <View style={styles.sortRow}>
+            {SORT_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.sortChip, sortKey === opt.key && styles.sortChipActive]}
+                onPress={() => setSortKey(opt.key)}
+              >
+                <Ionicons name={opt.icon as any} size={13} color={sortKey === opt.key ? '#6366f1' : '#6b7280'} />
+                <Text style={[styles.sortChipText, sortKey === opt.key && styles.sortChipTextActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {hasActiveFilters && (
+            <TouchableOpacity
+              style={styles.resetBtn}
+              onPress={() => { setFilterEmotion(null); setFilterCrisis('all'); setSortKey('newest'); }}
+            >
+              <Text style={styles.resetBtnText}>重置筛选</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Result count badge */}
+      {!initialLoading && !error && (
+        <View style={styles.countBar}>
+          <Text style={styles.countText}>
+            共 {displayedItems.length} 条{hasActiveFilters ? '（已筛选）' : ''}
+          </Text>
+        </View>
+      )}
 
       {initialLoading ? (
         <View style={styles.centerWrap}>
@@ -172,7 +309,7 @@ export default function ConversationHistoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={items}
+          data={displayedItems}
           keyExtractor={(it) => it.id}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
@@ -189,12 +326,20 @@ export default function ConversationHistoryScreen() {
           }
           ListEmptyComponent={
             <View style={styles.centerWrap}>
-              <Ionicons name="chatbubble-ellipses-outline" size={56} color="#d1d5db" />
-              <Text style={styles.emptyTitle}>暂无对话记录</Text>
-              <Text style={styles.emptySubtitle}>去「对话分析」页面完成第一次分析吧</Text>
-              <TouchableOpacity style={styles.goBtn} onPress={() => router.push('/conversations')}>
-                <Text style={styles.goBtnText}>前往分析</Text>
-              </TouchableOpacity>
+              <Ionicons name={hasActiveFilters ? 'search-outline' : 'chatbubble-ellipses-outline'} size={56} color="#d1d5db" />
+              <Text style={styles.emptyTitle}>{hasActiveFilters ? '没有符合条件的记录' : '暂无对话记录'}</Text>
+              <Text style={styles.emptySubtitle}>
+                {hasActiveFilters ? '尝试调整筛选条件' : '去「对话分析」页面完成第一次分析吧'}
+              </Text>
+              {hasActiveFilters ? (
+                <TouchableOpacity style={styles.goBtn} onPress={() => { setFilterEmotion(null); setFilterCrisis('all'); setSortKey('newest'); }}>
+                  <Text style={styles.goBtnText}>清除筛选</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.goBtn} onPress={() => router.push('/conversations')}>
+                  <Text style={styles.goBtnText}>前往分析</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
@@ -206,17 +351,48 @@ export default function ConversationHistoryScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#f0f4ff' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#f3f4f6' },
   title: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  filterToggleBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#f3f4f6' },
+  filterToggleBtnActive: { backgroundColor: '#eef2ff' },
+  filterDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#6366f1' },
+
+  filterPanel: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  filterSectionLabel: { fontSize: 12, fontWeight: '700', color: '#6b7280', marginBottom: 6 },
+  chipScroll: { flexGrow: 0 },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#e5e7eb', marginRight: 8,
+    backgroundColor: '#fafafa',
+  },
+  filterChipActive: { borderColor: '#6366f1', backgroundColor: '#eef2ff' },
+  filterChipText: { fontSize: 12, color: '#6b7280', marginLeft: 3 },
+  filterChipTextActive: { color: '#6366f1', fontWeight: '700' },
+  crisisFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sortChip: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#e5e7eb', backgroundColor: '#fafafa',
+  },
+  sortChipActive: { borderColor: '#6366f1', backgroundColor: '#eef2ff' },
+  sortChipText: { fontSize: 12, color: '#6b7280', marginLeft: 4 },
+  sortChipTextActive: { color: '#6366f1', fontWeight: '700' },
+  resetBtn: { marginTop: 10, alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#fee2e2', borderRadius: 8 },
+  resetBtnText: { color: '#b91c1c', fontSize: 12, fontWeight: '600' },
+
+  countBar: { paddingHorizontal: 16, paddingVertical: 6, backgroundColor: '#f8faff' },
+  countText: { fontSize: 12, color: '#9ca3af' },
+
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   loadingText: { color: '#9ca3af', marginTop: 8 },
   errorText: { color: '#b91c1c', marginBottom: 12, textAlign: 'center' },
@@ -226,16 +402,10 @@ const styles = StyleSheet.create({
   emptySubtitle: { color: '#9ca3af', marginTop: 4, textAlign: 'center' },
   goBtn: { marginTop: 16, backgroundColor: '#6366f1', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   goBtnText: { color: '#fff', fontWeight: '700' },
+
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 4,
+    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14,
+    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 4,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   emotionBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },

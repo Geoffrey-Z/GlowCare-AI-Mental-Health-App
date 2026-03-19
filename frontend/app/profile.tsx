@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
@@ -120,6 +121,7 @@ const getUserData = (userId) => {
 };
 
 export default function ProfileScreen({ route, navigation }) {
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts'); // posts, liked
   
@@ -215,11 +217,11 @@ export default function ProfileScreen({ route, navigation }) {
             </TouchableOpacity>
             
             <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.headerActionButton}>
-                <Ionicons name="share-outline" size={22} color="white" />
+              <TouchableOpacity style={styles.headerActionButton} onPress={() => router.push('/profile/settings')}>
+                <Ionicons name="settings-outline" size={22} color="white" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerActionButton}>
-                <Ionicons name="ellipsis-horizontal" size={22} color="white" />
+                <Ionicons name="share-outline" size={22} color="white" />
               </TouchableOpacity>
             </View>
           </View>

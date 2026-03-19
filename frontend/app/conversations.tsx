@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { Audio } from 'expo-av';
+import { useRouter } from 'expo-router';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
@@ -24,6 +25,7 @@ const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
 const DEMO_USER_ID = 'demo-user-123';
 
 export default function ConversationAnalysisScreen() {
+  const router = useRouter();
   const [conversationText, setConversationText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
@@ -100,7 +102,6 @@ export default function ConversationAnalysisScreen() {
       }
 
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       await rec.startAsync();
@@ -174,17 +175,11 @@ export default function ConversationAnalysisScreen() {
     }
   };
 
-  const getCrisisLevelColor = (level: number) => (level <= 1 ? '#22c55e' : level <= 2 ? '#84cc16' : level <= 3 ? '#eab308' : level <= 4 ? '#f59e0b' : '#ef4444');
-  const getCrisisLevelLabel = (level: number) => (level <= 1 ? 'Low' : level <= 2 ? 'Mild' : level <= 3 ? 'Moderate' : level <= 4 ? 'High' : 'Critical');
   const ProgressBar = ({ value, color = '#6366f1' }: { value: number; color?: string }) => (
     <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${Math.min(100, Math.max(0, value * 100))}%`, backgroundColor: color }]} /></View>
   );
-  const Chip = ({ label, tone = '#f3f4f6', textColor = '#374151' }) => (
-    <View style={[styles.chip, { backgroundColor: tone }]}><Text style={[styles.chipText, { color: textColor }]}>{label}</Text></View>
-  );
-  const SuggestionItem = ({ suggestion }) => (
-    <View style={styles.suggestionRow}><Ionicons name="checkmark-circle-outline" size={18} color="#22c55e" /><Text style={styles.suggestionText}>{suggestion}</Text></View>
-  );
+  const Chip = ({ label, tone = '#f3f4f6', textColor = '#374151' }) => (<View style={[styles.chip, { backgroundColor: tone }]}><Text style={[styles.chipText, { color: textColor }]}>{label}</Text></View>);
+  const SuggestionItem = ({ suggestion }) => (<View style={styles.suggestionRow}><Ionicons name="checkmark-circle-outline" size={18} color="#22c55e" /><Text style={styles.suggestionText}>{suggestion}</Text></View>);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -193,34 +188,37 @@ export default function ConversationAnalysisScreen() {
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={styles.title}>Conversation Analysis</Text>
-            <Text style={styles.subtitle}>Get AI-powered insights and support for difficult conversations</Text>
+            <TouchableOpacity onPress={() => router.push('/conversations/history')} style={styles.historyBtn}>
+              <Ionicons name="time-outline" size={18} color="#4f46e5" />
+              <Text style={styles.historyText}>History</Text>
+            </TouchableOpacity>
           </View>
+
           <View style={styles.inputSection}>
             <Text style={styles.sectionTitle}>Describe your conversation</Text>
             <TextInput style={styles.textInput} value={conversationText} onChangeText={setConversationText} placeholder="Tell me about a conversation that's bothering you..." multiline numberOfLines={6} textAlignVertical="top" />
           </View>
-          {isRecording && (
-            <View style={styles.recordingBanner}><View style={styles.blinkDot} /><Text style={styles.recordingText}>Recording... {formatTime(recordSeconds)}</Text></View>
-          )}
+
+          {isRecording && (<View style={styles.recordingBanner}><View style={styles.blinkDot} /><Text style={styles.recordingText}>Recording... {formatTime(recordSeconds)}</Text></View>)}
+
           <View style={styles.inputSection}>
             <Text style={styles.sectionTitle}>Or record your thoughts</Text>
             <TouchableOpacity style={[styles.recordButton, isRecording && styles.recordingButton]} onPress={isRecording ? stopRecording : startRecording} disabled={isProcessing}>
               {isProcessing ? <ActivityIndicator color="white" size="small" /> : <Ionicons name={isRecording ? 'stop' : 'mic'} size={24} color="white" />}
               <Text style={styles.recordButtonText}>{isProcessing ? 'Processing...' : isRecording ? 'Stop Recording' : 'Start Recording'}</Text>
             </TouchableOpacity>
-            {Platform.OS === 'web' && <Text style={styles.webNote}>Note: Web 预览不支持麦克风录音，请使用手机端体验。</Text>}
+            {Platform.OS === 'web' && (<Text style={styles.webNote}>Note: Web 预览不支持麦克风录音，请使用手机端体验。</Text>)}
           </View>
+
           <TouchableOpacity style={[styles.analyzeButton, (!conversationText.trim() || isAnalyzing) && styles.disabledButton]} onPress={analyzeConversation} disabled={!conversationText.trim() || isAnalyzing}>
             {isAnalyzing ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="analytics" size={24} color="white" />}
             <Text style={styles.analyzeButtonText}>{isAnalyzing ? 'Analyzing...' : 'Analyze Conversation'}</Text>
           </TouchableOpacity>
+
           {analysisResult && (
             <View style={styles.resultsSection}>
               <Text style={styles.sectionTitle}>Analysis Results</Text>
-              <View style={styles.crisisLevelCard}>
-                <View style={styles.crisisLevelHeader}><Ionicons name="shield-checkmark" size={24} color={getCrisisLevelColor(analysisResult.crisis_level)} /><Text style={styles.crisisLevelTitle}>Crisis Level</Text></View>
-                <View style={styles.crisisLevelIndicator}><Text style={[styles.crisisLevelValue, { color: getCrisisLevelColor(analysisResult.crisis_level) }]}>{getCrisisLevelLabel(analysisResult.crisis_level)} ({analysisResult.crisis_level}/5)</Text></View>
-              </View>
+              <View style={styles.crisisLevelCard}><View style={styles.crisisLevelHeader}><Ionicons name="shield-checkmark" size={24} color={analysisResult.crisis_level >= 4 ? '#ef4444' : '#22c55e'} /><Text style={styles.crisisLevelTitle}>Crisis Level</Text></View><View style={styles.crisisLevelIndicator}><Text style={[styles.crisisLevelValue, { color: analysisResult.crisis_level >= 4 ? '#ef4444' : '#22c55e' }]}>{analysisResult.crisis_level}/5</Text></View></View>
               {analysisResult.analysis && (
                 <View style={styles.analysisCard}>
                   <Text style={styles.cardTitle}>Emotion & Summary</Text>
@@ -233,21 +231,11 @@ export default function ConversationAnalysisScreen() {
                   {analysisResult.analysis.distortions?.length > 0 && (<View style={{ marginTop: 12 }}><Text style={styles.subTitle}>Cognitive Distortions</Text><View style={styles.chipsWrap}>{analysisResult.analysis.distortions.map((d: string, i: number) => (<Chip key={`dist-${i}`} label={d} tone="#fff7ed" textColor="#9a3412" />))}</View></View>)}
                 </View>
               )}
-              {analysisResult.support_suggestions?.length > 0 && (
-                <View style={styles.suggestionsSection}><Text style={styles.cardTitle}>Recommended Actions</Text>{analysisResult.support_suggestions.map((s: string, idx: number) => (<SuggestionItem suggestion={s} key={`sug-${idx}`} />))}</View>
-              )}
-              {(analysisResult?.analysis?.risk_score ?? 0) >= 0.6 || analysisResult?.crisis_level >= 4 ? (
-                <View style={styles.emergencyCard}><View style={styles.emergencyHeader}><Ionicons name="warning" size={24} color="#ef4444" /><Text style={styles.emergencyTitle}>High Risk Detected</Text></View><Text style={styles.emergencyText}>We recommend immediate coping steps. Tap below to see guidance.</Text><TouchableOpacity style={styles.emergencyButton} onPress={() => triggerCrisisOverlay(conversationText)}><Text style={styles.emergencyButtonText}>Open Crisis Support</Text></TouchableOpacity></View>
-              ) : null}
+              {analysisResult.support_suggestions?.length > 0 && (<View style={styles.suggestionsSection}><Text style={styles.cardTitle}>Recommended Actions</Text>{analysisResult.support_suggestions.map((s: string, idx: number) => (<View style={styles.suggestionRow} key={`sug-${idx}`}><Ionicons name="checkmark-circle-outline" size={18} color="#22c55e" /><Text style={styles.suggestionText}>{s}</Text></View>))}</View>)}
             </View>
           )}
-          <View style={styles.tipsSection}>
-            <Text style={styles.sectionTitle}>Conversation Tips</Text>
-            <View style={styles.tipCard}><Ionicons name="ear-outline" size={20} color="#22c55e" /><Text style={styles.tipText}><Text style={styles.tipTitle}>Active Listening: </Text>Focus on understanding rather than preparing your response</Text></View>
-            <View style={styles.tipCard}><Ionicons name="chatbubble-outline" size={20} color="#6366f1" /><Text style={styles.tipText}><Text style={styles.tipTitle}>{'Use "I" Statements: '}</Text>Express your feelings without blaming others</Text></View>
-            <View style={styles.tipCard}><Ionicons name="pause-outline" size={20} color="#f59e0b" /><Text style={styles.tipText}><Text style={styles.tipTitle}>Take Breaks: </Text>{"It's okay to pause and collect your thoughts"}</Text></View>
-          </View>
         </ScrollView>
+
         <Modal visible={showCrisisOverlay} transparent animationType="slide" onRequestClose={() => setShowCrisisOverlay(false)}>
           <View style={styles.modalBackdrop}><View style={styles.modalCard}><View style={styles.modalHeader}><Ionicons name="warning" size={22} color="#ef4444" /><Text style={styles.modalTitle}>Immediate Support</Text></View><Text style={styles.modalText}>{crisisData?.immediate_support || 'You are not alone. Let’s take a breath together.'}</Text>{crisisData?.coping_strategies?.length ? (<View style={{ marginTop: 12 }}>{crisisData.coping_strategies.map((c: string, i: number) => (<View key={`cr-${i}`} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}><Ionicons name="checkmark-circle-outline" size={18} color="#22c55e" /><Text style={{ marginLeft: 8, color: '#374151', flex: 1 }}>{c}</Text></View>))}</View>) : null}<TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowCrisisOverlay(false)}><Text style={styles.modalCloseText}>Close</Text></TouchableOpacity></View></View>
         </Modal>
@@ -259,9 +247,10 @@ export default function ConversationAnalysisScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#f8fafc' },
   container: { flex: 1 },
-  header: { padding: 16 },
+  header: { padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 22, fontWeight: 'bold', color: '#1f2937' },
-  subtitle: { fontSize: 14, color: '#6b7280', marginTop: 4 },
+  historyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#eef2ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  historyText: { color: '#4f46e5', fontWeight: '600', marginLeft: 6 },
   inputSection: { padding: 16, paddingTop: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#1f2937', marginBottom: 8 },
   textInput: { backgroundColor: 'white', borderRadius: 12, padding: 12, fontSize: 16, color: '#1f2937', borderWidth: 1, borderColor: '#e5e7eb', minHeight: 120 },

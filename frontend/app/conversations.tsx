@@ -84,6 +84,14 @@ export default function ConversationAnalysisScreen() {
       return;
     }
     try {
+      // Clean up any stale recording instance first
+      if (avRecordingRef.current) {
+        try {
+          await avRecordingRef.current.stopAndUnloadAsync();
+        } catch (_) {}
+        avRecordingRef.current = null;
+      }
+
       const granted = await ensureMicPermission();
       if (!granted) {
         const actions = (perm?.canAskAgain ?? true)
@@ -101,7 +109,17 @@ export default function ConversationAnalysisScreen() {
         return;
       }
 
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      // Configure audio session for iOS recording (prevents RecordingDisabledException)
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: 1, // DO_NOT_MIX
+        interruptionModeAndroid: 1,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+      });
+
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       await rec.startAsync();
@@ -109,9 +127,13 @@ export default function ConversationAnalysisScreen() {
 
       setIsRecording(true);
       startRecordingTimer();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to start recording', err);
-      Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
+      const msg = typeof err?.message === 'string' ? err.message : '请检查麦克风权限设置。';
+      Alert.alert('录音失败', `${msg}\n\n您也可以直接手动输入文字。`, [
+        { text: '知道了' },
+        { text: '使用示例文字', onPress: () => setConversationText('今天和同事沟通不顺利，我的意见被忽视了，心里很沮丧也有点生气。') },
+      ]);
     }
   };
 

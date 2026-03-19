@@ -117,6 +117,12 @@ export default function EmotionTrackingScreen() {
     }
 
     try {
+      // Clean up any stale recording instance first
+      if (avRecordingRef.current) {
+        try { await avRecordingRef.current.stopAndUnloadAsync(); } catch (_) {}
+        avRecordingRef.current = null;
+      }
+
       const granted = await ensureMicPermission();
       if (!granted) {
         const actions = (perm?.canAskAgain ?? true)
@@ -134,8 +140,16 @@ export default function EmotionTrackingScreen() {
         return;
       }
 
-      // iOS 需先切换可录音模式
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      // Configure audio session for iOS recording (prevents RecordingDisabledException)
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: 1, // INTERRUPTION_MODE_IOS_DO_NOT_MIX
+        interruptionModeAndroid: 1,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+      });
 
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
@@ -146,8 +160,11 @@ export default function EmotionTrackingScreen() {
       startRecordingTimer();
     } catch (err: any) {
       console.error('Failed to start recording', err);
-      const msg = typeof err?.message === 'string' ? err.message : 'Please check microphone permissions.';
-      Alert.alert('Error', `Failed to start recording. ${msg}`);
+      const msg = typeof err?.message === 'string' ? err.message : '请检查麦克风权限设置。';
+      Alert.alert('录音失败', `${msg}\n\n您也可以直接手动输入文字。`, [
+        { text: '知道了' },
+        { text: '使用示例文字', onPress: () => setTextInput('我现在有点焦虑，但也在努力调节自己。') },
+      ]);
     }
   };
 

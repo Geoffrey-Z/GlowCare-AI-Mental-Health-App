@@ -184,15 +184,18 @@ frontend:
 
   - task: "Real STT integration via OpenAI Whisper"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py, frontend/app/conversations.tsx, frontend/app/emotions.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "新增 POST /api/stt/transcribe 接口，接收音频文件上传，调用 OpenAI whisper-1 模型进行中文转写，返回 {text, model}；前端 conversations.tsx 和 emotions.tsx stopRecording 函数更新为上传音频到 STT 接口并展示真实转写文字，优雅降级到示例文字"
+        comment: "新增 POST /api/stt/transcribe 接口；前端停止录音后上传音频到 STT 接口获取真实转写文本"
+      - working: true
+        agent: "testing"
+        comment: "✅ 6/6 后端测试通过。修复了 AsyncOpenAI base_url（Emergent 代理）和 MIME 类型推断。有效 WAV 返回 200+{text, model}；无文件 422；无效格式 500。"
 
 metadata:
   created_by: "main_agent"

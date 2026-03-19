@@ -116,20 +116,44 @@ frontend:
         agent: "main"
         comment: "已合并用户本地上传的 SDK54 依赖与 expo-audio 迁移文件，并完成容器依赖安装与服务重启。"
 
+  - task: "Conversation History feature - backend endpoints"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "已实现 GET /api/conversations/{user_id}/history（分页，游标翻页）和 GET /api/conversations/detail/{id} 两个端点"
+
+  - task: "Conversation History feature - frontend pages"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/conversations/history.tsx, frontend/app/conversations/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "重写 history.tsx（卡片样式，情绪emoji、危机等级徽章、风险进度条、分页FlatList、下拉刷新、中文）；重写 [id].tsx（情绪指标进度条、触发因素/认知偏差芯片、建议行动编号列表、原始对话、底部操作按钮）"
+
 metadata:
   created_by: "main_agent"
-  version: "2.3"
-  test_sequence: 4
-  run_ui: false
+  version: "2.4"
+  test_sequence: 5
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "Phase 2: Emotion tracking screens with speech-to-text"
-    - "SDK 54 migration + expo-audio recording"
+    - "Conversation History feature - backend endpoints"
+    - "Conversation History feature - frontend pages"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "已修复 emotions.tsx 对 expo-av 的依赖，迁移为 expo-audio 并增加录音横幅/权限回退；请对前端进行回归测试，验证情绪页录音流程与 Analyze 提交。"
+    message: "新增对话历史功能：后端已有 GET /api/conversations/{user_id}/history 和 GET /api/conversations/detail/{id} 端点；前端 history.tsx（卡片列表+分页+下拉刷新）和 [id].tsx（详情含情绪指标进度条+认知偏差芯片+建议行动）已完成。请测试：1) 对话分析页的历史入口按钮可跳转到历史页面；2) 历史页面加载、卡片展示、分页；3) 点击卡片进入详情页，展示正确的情绪指标、危机等级等信息。重点测试路径：conversations -> conversations/history -> conversations/{id}。"

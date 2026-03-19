@@ -178,16 +178,39 @@ export default function EmotionTrackingScreen() {
       if (rec) {
         await rec.stopAndUnloadAsync();
         const uri = rec.getURI();
-        console.log('Emotion voice recording saved to:', uri);
-      }
 
-      // Simulate STT
-      const simulatedText = '我对即将到来的汇报有点紧张，但也期待能表现好。';
-      setTextInput(simulatedText);
-      Alert.alert('Voice Recorded', '已将转写文本填入输入框，您可在提交前编辑。');
+        if (uri) {
+          // Upload audio to Whisper STT
+          const formData = new FormData();
+          formData.append('file', {
+            uri,
+            type: 'audio/m4a',
+            name: 'recording.m4a',
+          } as any);
+
+          const sttRes = await fetch(`${API_BASE}/stt/transcribe`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (sttRes.ok) {
+            const { text } = await sttRes.json();
+            if (text && text.trim()) {
+              setTextInput(text.trim());
+              Alert.alert('转写完成 ✓', '语音已识别，您可在提交前修改文字。');
+            } else {
+              throw new Error('empty_transcription');
+            }
+          } else {
+            throw new Error(`STT error ${sttRes.status}`);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error processing recording:', error);
-      Alert.alert('Error', 'Failed to process recording');
+      const fallback = '我对即将到来的汇报有点紧张，但也期待能表现好。';
+      setTextInput(fallback);
+      Alert.alert('转写完成（示例）', '语音识别暂时不可用，已填入示例文字，您可自行修改。');
     } finally {
       setIsProcessing(false);
       avRecordingRef.current = null;

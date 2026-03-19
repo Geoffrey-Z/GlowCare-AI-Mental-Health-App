@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 3: Backend-only testing for POST /api/stt/transcribe (OpenAI Whisper STT). Found and fixed a critical integration bug: AsyncOpenAI was called without the emergent proxy base_url, causing 401 from api.openai.com. Fixed by adding base_url pointing to the emergent proxy. All 6 STT tests now pass (100%).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/stt/transcribe",
+        "issue": "AsyncOpenAI(api_key=EMERGENT_LLM_KEY) was missing base_url. The sk-emergent-* key is rejected by api.openai.com (401 invalid_api_key). Fix applied: detect sk-emergent-* key and set base_url to {INTEGRATION_PROXY_URL}/llm (https://integrations.emergentagent.com/llm). Also fixed hardcoded audio/m4a MIME type — now derived from file suffix for correctness.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_stt.py",
+    "/app/test_reports/pytest/stt_pytest_results.xml"
+  ],
+  "action_items": [
+    "DONE (fixed in this iteration): AsyncOpenAI base_url now set to {INTEGRATION_PROXY_URL}/llm when sk-emergent-* key is detected.",
+    "NOTE: Silent WAV returns text='' from Whisper — this is expected behavior (not a bug). Whisper correctly transcribes real speech when audio contains voice."
+  ],
+  "critical_code_review_comments": [
+    "server.py transcribe_audio: MIME type was hardcoded to 'audio/m4a' for all uploads. Now correctly derived from file extension (.wav→audio/wav, .mp3→audio/mpeg, etc.).",
+    "server.py transcribe_audio: No file-size guard. Very large uploads could exhaust memory since content = await file.read() loads entire file into RAM. Consider streaming to tempfile directly."
+  ],
+  "updated_files": [
+    "/app/backend/server.py",
+    "/app/backend/tests/test_stt.py"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 STT tests passed after fix)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "STT endpoint POST /api/stt/transcribe fully working: 422 for missing file, 200+{text,model} for valid WAV, 500 for non-audio content, model always='whisper-1'. The emergent proxy base_url fix is in server.py lines ~418-435. Test file at /app/backend/tests/test_stt.py has 6 test cases covering all required scenarios.",
+  "rca_of_issue": "Root cause: AsyncOpenAI(api_key=EMERGENT_LLM_KEY) calls https://api.openai.com/v1/audio/transcriptions directly. The key sk-emergent-* is an Emergent internal key, valid only against the Emergent proxy (https://integrations.emergentagent.com/llm). OpenAI rejects it with 401. Fix: pass base_url=f'{INTEGRATION_PROXY_URL}/llm' to AsyncOpenAI when key starts with sk-emergent-. Confirmed proxy supports audio/transcriptions at /llm/v1/audio/transcriptions returning {text, usage, language, task, duration}."
+}

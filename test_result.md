@@ -182,21 +182,31 @@ frontend:
         agent: "main"
         comment: "历史页增加：情绪类型筛选（芯片）、危机等级筛选（全部/高风险≥3/正常<3）、排序（最新/最早/风险↓/危机↓）、活跃筛选红点提示、重置筛选按钮、结果计数"
 
+  - task: "Real STT integration via OpenAI Whisper"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py, frontend/app/conversations.tsx, frontend/app/emotions.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "新增 POST /api/stt/transcribe 接口，接收音频文件上传，调用 OpenAI whisper-1 模型进行中文转写，返回 {text, model}；前端 conversations.tsx 和 emotions.tsx stopRecording 函数更新为上传音频到 STT 接口并展示真实转写文字，优雅降级到示例文字"
+
 metadata:
   created_by: "main_agent"
-  version: "2.5"
-  test_sequence: 6
-  run_ui: true
+  version: "2.6"
+  test_sequence: 7
+  run_ui: false
 
 test_plan:
   current_focus:
-    - "AI model upgrade to Claude 4 Sonnet"
-    - "Personal Settings page"
-    - "Conversation History filtering and sorting"
+    - "Real STT integration via OpenAI Whisper"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "本次新增三项功能：a) 后端模型已切换为 anthropic/claude-4-sonnet-20250514（fallback gpt-4o-mini）；b) 个人设置页 /profile/settings 已创建，profile 页右上角有齿轮图标入口，后端有 GET/PUT /api/users/{user_id}/settings；c) 历史页新增筛选/排序（情绪/危机等级/排序方式）。请测试：1) 后端 GET /api/users/demo-user-123/settings 和 PUT 保存设置；2) 前端个人页面右上角齿轮按钮跳转到设置页；3) 设置页AI模型选择、滑块、语言切换、每日提醒开关；4) 历史页右上角筛选按钮展开面板，情绪/危机/排序筛选生效；5) 筛选后结果数变化且重置功能正常。"
+    message: "新增 POST /api/stt/transcribe 接口（接收 multipart form-data 音频文件，调用 AsyncOpenAI whisper-1 模型，返回 {text, model}）。请测试：1) 上传一个真实的中文音频 m4a/wav 文件到 POST /api/stt/transcribe 并验证返回的中文转写文本；2) 测试无文件上传返回 422；3) 测试后端错误时返回 500。注意：前端 stopRecording 逻辑已更新，使用 FormData 上传录音文件到 /api/stt/transcribe，测试只需关注后端接口。STT 结果为实际 Whisper 识别，测试时提供真实音频效果最好，如无音频可用小型 wav 测试文件验证接口通路。"

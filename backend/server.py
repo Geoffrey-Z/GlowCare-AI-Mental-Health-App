@@ -1,10 +1,12 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, File, UploadFile
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from openai import AsyncOpenAI
 import os
 import logging
+import tempfile
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -396,8 +398,54 @@ async def get_conversation_detail(conversation_id: str):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return ConversationEntry(**doc)
 
-# User Settings
-@api_router.get("/users/{user_id}/settings", response_model=UserSettingsData)
+# ===== Speech-to-Text =====
+@api_router.post("/stt/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    """Transcribe audio using OpenAI Whisper (whisper-1). Supports m4a, mp4, wav, webm etc."""
+    tmp_path = None
+    try:
+        content = await file.read()
+        # Determine file suffix from original filename or content-type
+        original_name = file.filename or "recording.m4a"
+        suffix = "." + original_name.rsplit(".", 1)[-1] if "." in original_name else ".m4a"
+        if suffix not in {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm"}:
+            suffix = ".m4a"
+
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        # Use emergent proxy when an sk-emergent-* key is configured
+        _proxy_url = os.environ.get("INTEGRATION_PROXY_URL", "https://integrations.emergentagent.com")
+        _base_url = f"{_proxy_url}/llm" if (EMERGENT_LLM_KEY or "").startswith("sk-emergent-") else None
+        openai_client = AsyncOpenAI(api_key=EMERGENT_LLM_KEY, base_url=_base_url)
+
+        # Derive MIME type from suffix so the upstream receives correct format info
+        _mime_map = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".mp4": "audio/mp4",
+                     ".m4a": "audio/m4a", ".webm": "audio/webm", ".mpeg": "audio/mpeg",
+                     ".mpga": "audio/mpeg"}
+        _mime = _mime_map.get(suffix, "audio/m4a")
+
+        with open(tmp_path, "rb") as audio_file:
+            response = await openai_client.audio.transcriptions.create(
+                file=(original_name, audio_file, _mime),
+                model="whisper-1",
+                language="zh",
+                response_format="json",
+            )
+
+        text = getattr(response, "text", "") or ""
+        return {"text": text.strip(), "model": "whisper-1"}
+
+    except Exception as e:
+        logging.error(f"STT transcription failed: {e}")
+        raise HTTPException(status_code=500, detail=f"转写失败: {str(e)}")
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 async def get_user_settings(user_id: str):
     user = await db.users.find_one({"id": user_id})
     if not user:

@@ -146,15 +146,40 @@ export default function ConversationAnalysisScreen() {
       if (rec) {
         await rec.stopAndUnloadAsync();
         const uri = rec.getURI();
-        console.log('Recording saved to:', uri);
-      }
 
-      const simulatedConversation = '我和领导开会时紧张得说不出话，后来一直在自责，担心大家觉得我不专业。';
-      setConversationText(simulatedConversation);
-      Alert.alert('Conversation Recorded', '已将转写文本填入输入框，您可在分析前进行修改。');
-    } catch (error) {
+        if (uri) {
+          // Upload audio to Whisper STT
+          const formData = new FormData();
+          formData.append('file', {
+            uri,
+            type: 'audio/m4a',
+            name: 'recording.m4a',
+          } as any);
+
+          const sttRes = await fetch(`${API_BASE}/stt/transcribe`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (sttRes.ok) {
+            const { text } = await sttRes.json();
+            if (text && text.trim()) {
+              setConversationText(text.trim());
+              Alert.alert('转写完成 ✓', '语音已识别，您可在分析前修改文字。');
+            } else {
+              throw new Error('empty_transcription');
+            }
+          } else {
+            throw new Error(`STT error ${sttRes.status}`);
+          }
+        }
+      }
+    } catch (error: any) {
       console.error('Error processing recording:', error);
-      Alert.alert('Error', 'Failed to process recording');
+      // Graceful fallback with sample text
+      const fallback = '我和领导开会时紧张得说不出话，后来一直在自责，担心大家觉得我不专业。';
+      setConversationText(fallback);
+      Alert.alert('转写完成（示例）', '语音识别暂时不可用，已填入示例文字，您可自行修改。');
     } finally {
       setIsProcessing(false);
       avRecordingRef.current = null;

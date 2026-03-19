@@ -118,27 +118,33 @@ frontend:
 
   - task: "Conversation History feature - backend endpoints"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "已实现 GET /api/conversations/{user_id}/history（分页，游标翻页）和 GET /api/conversations/detail/{id} 两个端点"
+      - working: true
+        agent: "testing"
+        comment: "✅ 14/14 后端测试通过。历史接口分页/游标/404 均正常；详情接口正常；端到端：创建后立即可查到。注意：doubao/volcano LLM 回退至 gpt-4o-mini，功能正常。"
 
   - task: "Conversation History feature - frontend pages"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/conversations/history.tsx, frontend/app/conversations/[id].tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "重写 history.tsx（卡片样式，情绪emoji、危机等级徽章、风险进度条、分页FlatList、下拉刷新、中文）；重写 [id].tsx（情绪指标进度条、触发因素/认知偏差芯片、建议行动编号列表、原始对话、底部操作按钮）"
+      - working: true
+        agent: "testing"
+        comment: "✅ 全部前端流程测试通过。历史按钮跳转、卡片展示、分页、详情页各模块均正常。"
 
 metadata:
   created_by: "main_agent"
